@@ -30,7 +30,7 @@ label{display:block;font-size:12px;color:var(--sub);margin:0 0 3px}
 .card h2{font-size:14px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
 .card h2 small{font-weight:normal;color:var(--sub);font-size:12px}
 .grid{display:grid;gap:10px}
-.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr 1fr}.g4{grid-template-columns:repeat(4,1fr)}
+.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr 1fr}.g4{grid-template-columns:repeat(2,1fr)}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .muted{color:var(--sub);font-size:12px}
 
@@ -2620,6 +2620,189 @@ let docs=[];let cur=null;let tab='form';
 let pendingOpen=(location.hash.match(/^#doc=([\w-]+)/)||[])[1]||null;
 const ACCTS=['급여','제수당','퇴직금','사회보험부담비용','기타후생경비','여비','수용기관경비','업무추진비','직책보조비','회의비','공공요금및제세공과금','차량비','시설장비유지비','소모품비','수용비및수수료','보험료','사업비','시설비','자산취득비','장비비','부대비','잡지출'];
 const FUNDS=['보조금','후원금','법인전입금','이용료','자부담','기타'];
+/* 사회복지법인 및 사회복지시설 재무·회계 규칙 [별표 1~10] 세입·세출예산과목
+   구조: [관코드, 관명, [[항코드, 항명, [[목코드, 목명], ...]], ...]]
+   ○○ 는 시설이 종류별·사업별로 직접 이름을 붙이는 목 */
+const ACC_TYPES=[
+ {id:'corp',label:'법인회계',note:'사회복지법인 법인회계 (별표 1·2)',
+  rev:{in:'별표 1 <개정 2012.8.7>',out:'별표 2 <개정 2015.12.24>'},
+  in:[
+   ['01','재산수입',[['11','기본재산수입',[['111','임대료수입'],['112','배당 및 이자수입'],['113','재산매각수입'],['114','기타수입']]]]],
+   ['02','사업수입',[['21','사업수입',[['211','○○사업수입']]]]],
+   ['03','과년도수입',[['31','과년도수입',[['311','과년도수입']]]]],
+   ['04','보조금수입',[['41','보조금수입',[['411','국고보조금'],['412','시·도 보조금'],['413','시·군·구 보조금'],['414','기타 보조금']]]]],
+   ['05','후원금수입',[['51','후원금수입',[['511','지정후원금'],['512','비지정후원금']]]]],
+   ['06','차입금',[['61','차입금',[['611','금융기관 차입금'],['612','기타차입금']]]]],
+   ['07','전입금',[['71','전입금',[['711','다른 회계로부터의 전입금']]]]],
+   ['08','이월금',[['81','이월금',[['811','전년도이월금'],['812','전년도이월금(후원금)'],['813','○○이월사업비']]]]],
+   ['09','잡수입',[['91','잡수입',[['911','불용품매각대'],['912','기타예금이자수입'],['913','기타잡수입']]]]]
+  ],
+  out:[
+   ['01','사무비',[
+     ['11','인건비',[['111','급여'],['112','제수당'],['113','일용잡급'],['115','퇴직금 및 퇴직적립금'],['116','사회보험부담금'],['117','기타후생경비']]],
+     ['12','업무추진비',[['121','기관운영비'],['122','직책보조비'],['123','회의비']]],
+     ['13','운영비',[['131','여비'],['132','수용비 및 수수료'],['133','공공요금'],['134','제세공과금'],['135','차량비'],['136','연료비'],['137','기타운영비']]]]],
+   ['02','재산조성비',[['21','시설비',[['211','시설비'],['212','자산취득비'],['213','시설장비유지비']]]]],
+   ['03','사업비',[['31','일반사업비',[['311','○○사업비']]]]],
+   ['04','전출금',[['41','전출금',[['411','○○시설전출금'],['412','○○시설전출금(후원금)']]]]],
+   ['05','과년도지출',[['51','과년도지출',[['511','과년도지출']]]]],
+   ['06','상환금',[['61','부채상환금',[['611','원금상환금'],['612','이자지급금']]]]],
+   ['07','잡지출',[['71','잡지출',[['711','잡지출']]]]],
+   ['08','예비비 및 기타',[['81','예비비 및 기타',[['811','예비비'],['812','반환금']]]]]
+  ]},
+
+ {id:'facility',label:'시설회계 (일반)',note:'복지관 등·어린이집·노인장기요양기관을 제외한 일반 시설회계 (별표 3·4)',
+  rev:{in:'별표 3 <개정 2012.8.7>',out:'별표 4 <개정 2019.9.27>'},
+  in:[
+   ['01','입소자부담금수입',[['11','입소비용수입',[['111','○○비용수입']]]]],
+   ['02','사업수입',[['21','사업수입',[['211','○○사업수입']]]]],
+   ['03','과년도수입',[['31','과년도수입',[['311','과년도수입']]]]],
+   ['04','보조금수입',[['41','보조금수입',[['411','국고보조금'],['412','시·도 보조금'],['413','시·군·구 보조금'],['414','기타 보조금']]]]],
+   ['05','후원금수입',[['51','후원금수입',[['511','지정후원금'],['512','비지정후원금']]]]],
+   ['06','요양급여수입',[['61','요양급여수입',[['611','장기요양급여수입']]]]],
+   ['07','차입금',[['71','차입금',[['711','금융기관 차입금'],['712','기타차입금']]]]],
+   ['08','전입금',[['81','전입금',[['811','법인전입금'],['812','법인전입금(후원금)']]]]],
+   ['09','이월금',[['91','이월금',[['911','전년도이월금'],['912','전년도이월금(후원금)'],['913','○○이월사업비']]]]],
+   ['10','잡수입',[['101','잡수입',[['1011','불용품매각대'],['1012','기타예금이자수입'],['1013','기타잡수입']]]]]
+  ],
+  out:[
+   ['01','사무비',[
+     ['11','인건비',[['111','급여'],['112','제수당'],['113','일용잡급'],['115','퇴직금 및 퇴직적립금'],['116','사회보험부담금'],['117','기타후생경비']]],
+     ['12','업무추진비',[['121','기관운영비'],['122','직책보조비'],['123','회의비']]],
+     ['13','운영비',[['131','여비'],['132','수용비 및 수수료'],['133','공공요금'],['134','제세공과금'],['135','차량비'],['136','기타운영비']]]]],
+   ['02','재산조성비',[['21','시설비',[['211','시설비'],['212','자산취득비'],['213','시설장비유지비']]]]],
+   ['03','사업비',[
+     ['31','운영비',[['311','생계비'],['312','수용기관경비'],['313','피복비'],['314','의료비'],['315','장의비'],['316','직업재활비'],['317','자활사업비'],['318','특별급식비'],['319','연료비']]],
+     ['32','교육비',[['321','수업료'],['322','학용품비'],['323','도서구입비'],['324','교통비'],['325','급식비'],['326','학습지원비'],['327','수학여행비'],['328','교복비'],['329','이미용비'],['330','기타교육비']]],
+     ['33','○○사업비',[['331','의료재활사업비'],['332','사회심리재활사업비'],['333','교육재활사업비'],['334','직업재활사업비'],['335','○○사업비']]]]],
+   ['04','전출금',[['41','전출금',[['411','법인회계전출금']]]]],
+   ['05','과년도지출',[['51','과년도지출',[['511','과년도지출']]]]],
+   ['06','상환금',[['61','부채상환금',[['611','원금상환금'],['612','이자지불금']]]]],
+   ['07','잡지출',[['71','잡지출',[['711','잡지출']]]]],
+   ['08','예비비 및 기타',[['81','예비비 및 기타',[['811','예비비'],['812','반환금']]]]]
+  ]},
+
+ {id:'welfare',label:'복지관 등 시설회계',note:'복지관 등 (제10조제3항제1호, 별표 5·6)',
+  rev:{in:'별표 5 <개정 2012.8.7>',out:'별표 6 <개정 2015.12.24>'},
+  in:[
+   ['01','사업수입',[['11','사업수입',[['111','○○수입']]]]],
+   ['02','과년도수입',[['21','과년도수입',[['211','과년도수입']]]]],
+   ['03','보조금수입',[['31','보조금수입',[['311','국고보조금'],['312','시·도 보조금'],['313','시·군·구 보조금'],['314','기타보조금']]]]],
+   ['04','후원금수입',[['41','후원금수입',[['411','지정후원금'],['412','비지정후원금']]]]],
+   ['05','차입금',[['51','차입금',[['511','금융기관 차입금'],['512','기타차입금']]]]],
+   ['06','전입금',[['61','전입금',[['611','법인전입금'],['612','법인전입금(후원금)']]]]],
+   ['07','이월금',[['71','이월금',[['711','전년도이월금'],['712','전년도이월금(후원금)'],['713','○○이월사업비']]]]],
+   ['08','잡수입',[['81','잡수입',[['811','불용품매각대'],['812','기타예금이자수입'],['813','기타잡수입']]]]]
+  ],
+  out:[
+   ['01','사무비',[
+     ['11','인건비',[['111','급여'],['112','제수당'],['113','일용잡급'],['115','퇴직금 및 퇴직적립금'],['116','사회보험부담금'],['117','기타후생경비']]],
+     ['12','업무추진비',[['121','기관운영비'],['122','직책보조비'],['123','회의비']]],
+     ['13','운영비',[['131','여비'],['132','수용비 및 수수료'],['133','공공요금'],['134','제세공과금'],['135','차량비'],['136','연료비'],['137','기타운영비']]]]],
+   ['02','재산조성비',[['21','시설비',[['211','시설비'],['212','자산취득비'],['213','시설장비유지비']]]]],
+   ['03','사업비',[['31','사업비',[['311','○○사업비']]]]],
+   ['04','과년도지출',[['41','과년도지출',[['411','과년도지출']]]]],
+   ['05','상환금',[['51','부채상환금',[['511','원금상환금'],['512','이자지급금']]]]],
+   ['06','잡지출',[['61','잡지출',[['611','잡지출']]]]],
+   ['07','예비비 및 기타',[['71','예비비 및 기타',[['711','예비비'],['712','반환금']]]]]
+  ]},
+
+ {id:'childcare',label:'어린이집 시설회계',note:'어린이집 (제10조제3항제2호, 별표 7·8)',
+  rev:{in:'별표 7 <개정 2020.5.6>',out:'별표 8 <개정 2020.5.6>'},
+  in:[
+   ['01','보육료',[['11','보육료',[['111','정부지원 보육료'],['112','부모부담 보육료']]]]],
+   ['02','수익자 부담 수입',[['21','선택적 보육활동비',[['211','특별활동비']]],['22','기타 필요경비',[['221','기타 필요경비']]]]],
+   ['03','보조금 및 지원금',[
+     ['31','인건비 보조금',[['311','인건비 보조금']]],
+     ['32','운영보조금',[['321','기관보육료'],['322','연장보육료'],['323','공공형 운영비'],['324','그 밖의 지원금']]],
+     ['33','자본 보조금',[['331','자본보조금']]]]],
+   ['04','전입금',[['41','전입금',[['411','전입금']]],['42','차입금',[['421','단기차입금'],['422','장기차입금']]]]],
+   ['05','기부금',[['51','기부금',[['511','지정후원금'],['512','비지정후원금']]]]],
+   ['06','적립금',[['61','적립금',[['611','적립금 처분 수입']]]]],
+   ['07','과년도 수입',[['71','과년도 수입',[['711','과년도 수입']]]]],
+   ['08','잡수입',[['81','잡수입',[['811','이자수입'],['812','그 밖의 잡수입']]]]],
+   ['09','전년도 이월액',[['91','전년도 이월액',[['911','전년도 이월금'],['912','전년도 이월사업비']]]]]
+  ],
+  out:[
+   ['100','인건비',[
+     ['110','원장 인건비',[['111','원장급여'],['112','원장수당']]],
+     ['120','보육교직원 인건비',[['121','보육교직원 급여'],['122','보육교직원 수당']]],
+     ['130','기타 인건비',[['131','기타 인건비']]],
+     ['140','기관부담금',[['141','법정부담금'],['142','퇴직금 및 퇴직적립금']]]]],
+   ['200','운영비',[
+     ['210','관리운영비',[['211','수용비 및 수수료'],['212','공공요금 및 제세공과금'],['213','연료비'],['214','여비'],['215','차량비'],['216','복리후생비'],['217','기타 운영비']]],
+     ['220','업무추진비',[['221','업무추진비'],['222','직책급'],['223','회의비']]]]],
+   ['300','보육활동비',[['310','기본보육활동비',[['311','교직원연수·연구비'],['312','교재·교구 구입비'],['313','행사비'],['314','영유아복리비'],['315','급식·간식 재료비']]]]],
+   ['400','수익자부담경비',[
+     ['410','선택적 보육활동비',[['411','특별활동비 지출']]],
+     ['420','기타 필요경비',[['421','기타 필요경비 지출']]]]],
+   ['500','적립금',[['510','적립금',[['511','적립금']]]]],
+   ['600','상환·반환금',[
+     ['610','차입금 상환',[['611','단기 차입금 상환'],['612','장기 차입금 상환']]],
+     ['620','반환금',[['621','보조금 반환금'],['622','보호자 반환금'],['623','법인회계 전출금']]]]],
+   ['700','재산조성비',[
+     ['710','시설비',[['711','시설비'],['712','시설장비 유지비']]],
+     ['720','자산 구입비',[['721','자산취득비']]]]],
+   ['800','과년도 지출',[['810','과년도 지출',[['811','과년도 지출']]]]],
+   ['900','잡지출',[['910','잡지출',[['911','잡지출']]]]],
+   ['1000','예비비',[['1010','예비비',[['1011','예비비']]]]]
+  ]},
+
+ {id:'ltc',label:'노인장기요양기관',note:'노인장기요양기관 (제10조제3항제3호, 별표 9·10)',
+  rev:{in:'별표 9 <신설 2018.3.30>',out:'별표 10 <개정 2022.12.28>'},
+  in:[
+   ['01','입소자(이용자)부담금수입',[['11','입소(이용)비용수입',[['112','본인부담금수입'],['113','식재료비수입'],['114','상급침실이용료'],['115','이미용비'],['116','기타비급여수입']]]]],
+   ['02','사업수입',[['21','사업수입',[['211','○○사업수입']]]]],
+   ['03','과년도수입',[['31','과년도수입',[['311','과년도수입']]]]],
+   ['04','보조금수입',[['41','보조금수입',[['411','국고보조금'],['412','시·도 보조금'],['413','시·군·구 보조금'],['414','기타 보조금']]]]],
+   ['05','후원금수입',[['51','후원금수입',[['511','지정후원금'],['512','비지정후원금']]]]],
+   ['06','요양급여수입',[['61','요양급여수입',[['611','장기요양급여수입'],['612','가산금 수입']]]]],
+   ['07','차입금',[['71','차입금',[['711','금융기관 차입금'],['712','기타차입금']]]]],
+   ['08','전입금',[['81','전입금',[['811','법인전입금'],['812','법인전입금(후원금)'],['813','기타전입금'],['814','기타전입금(후원금)']]]]],
+   ['09','이월금',[['91','이월금',[['911','전년도이월금'],['912','전년도이월금(후원금)'],['913','전년도이월금(식재료비)'],['914','○○ 이월사업비']]]]],
+   ['10','잡수입',[['101','잡수입',[['1011','불용품매각대'],['1012','기타예금이자수입'],['1013','직원식재료비수입'],['1014','기타잡수입']]]]],
+   ['11','적립금 및 준비금(특별회계)',[['111','운영충당 적립금 및 환경개선준비금',[['1111','운영충당적립금'],['1112','시설환경개선준비금']]]]]
+  ],
+  out:[
+   ['01','사무비',[
+     ['11','인건비',[['111','급여'],['112','각종 수당'],['113','일용잡급'],['115','퇴직금 및 퇴직적립금'],['116','사회보험부담금']]],
+     ['12','업무추진비',[['121','기관운영비'],['122','직책보조비'],['123','회의비']]],
+     ['13','운영비',[['131','여비'],['132','수용비 및 수수료'],['133','공공요금 및 각종 세금공과금'],['135','차량비'],['136','임차료'],['137','기타운영비']]]]],
+   ['02','재산조성비',[['21','시설비',[['211','시설비'],['212','자산취득비'],['213','시설장비유지비']]]]],
+   ['03','사업비',[
+     ['31','운영비',[['311','생계비'],['312','수용기관경비'],['314','의료비'],['315','장의비']]],
+     ['33','○○사업비',[['331','프로그램사업비']]],
+     ['34','복지용구취득비',[['341','대여용구 취득비'],['342','판매용구 취득비']]]]],
+   ['04','전출금',[['41','전출금',[['411','법인회계전출금'],['412','기타전출금']]]]],
+   ['05','과년도지출',[['51','과년도지출',[['511','과년도지출']]]]],
+   ['06','상환금',[['61','부채상환금',[['611','원금상환금'],['612','이자지불금']]]]],
+   ['07','잡지출',[['71','잡지출',[['711','잡지출']]]]],
+   ['08','예비비 및 기타',[['81','예비비 및 기타',[['811','예비비'],['812','반환금']]]]],
+   ['09','적립금 및 준비금',[['91','운영충당 적립금 및 환경개선준비금',[['911','운영충당적립금'],['912','시설환경개선준비금']]]]],
+   ['10','적립금 및 준비금 지출(특별회계)',[['101','운영충당 적립금 및 환경개선준비금 지출',[['1011','운영충당적립금 지출'],['1012','시설환경개선준비금 지출']]]]]
+  ]}
+];
+
+function normDoc(d){
+  if(d.kind!=='in')d.kind='out';
+  if(d.fType===undefined)d.fType=(d.gwan||d.hang||d.mok)?'custom':'';
+  ['gwanC','hangC','mokC','hangCustom','mokCustom'].forEach(k=>{if(d[k]===undefined)d[k]=''});
+  return d;
+}
+function accList(d){const t=ACC_TYPES.find(x=>x.id===d.fType);return t?t[d.kind==='in'?'in':'out']:null}
+function applyAcct(d){
+  const list=accList(d);if(!list)return;
+  const g=list.find(x=>x[0]===d.gwanC),h=g&&g[2].find(x=>x[0]===d.hangC),m=h&&h[2].find(x=>x[0]===d.mokC);
+  d.gwan=g?g[1]:'';
+  d.hang=h?h[1].replace(/○○/g,d.hangCustom||'○○'):'';
+  d.mok=m?m[1].replace(/○○/g,d.mokCustom||'○○'):'';
+}
+function acctNames(d){
+  const list=accList(d);if(!list)return ACCTS;
+  const out=[];list.forEach(g=>g[2].forEach(h=>h[2].forEach(m=>{if(!out.includes(m[1]))out.push(m[1])})));
+  if(d.mok&&!out.includes(d.mok))out.unshift(d.mok);
+  return out;
+}
 
 function autoNo(date,exceptId){
   const p=(date||today()).replace(/-/g,'');
@@ -2632,6 +2815,7 @@ function newDoc(){
     gwan:'',hang:'',mok:'',spender:S.spender||'',biz:'',writer:S.writer||'',
     d:{balui:date,gyeoljae:date,chulnap:date,deunggi:date},
     items:[{acct:'',memo:'',amt:'',vendor:'',fund:''}],remark:'',
+    kind:'out',fType:S.fType||'',gwanC:'',hangC:'',mokC:'',hangCustom:'',mokCustom:'',
     approvals:S.approvals.slice(),photos:[],evMode:'inline',evMax:4,nextPer:4,facility:S.facility||'',updated:Date.now()};
 }
 function sumOf(d){return (d.items||[]).reduce((a,i)=>a+num(i.amt),0)}
@@ -2665,7 +2849,7 @@ function pagesHTML(d){
     +(inl.length?'<div class="evgrid" style="grid-template-columns:repeat('+colsFor(inl.length)+',1fr)">'+inl.map(p=>evCell(p,anyCap)).join('')+'</div>':'')
     +'</div></div>';
   const foot='<div class="foot">시설명 : '+esc(d.facility)+'</div>';
-  let out='<section class="page"><div class="pg-in"><div class="head"><div class="title">지출결의서</div>'+appr+'</div>'+t1+t2+sum+rem+foot+'</div></section>';
+  let out='<section class="page"><div class="pg-in"><div class="head"><div class="title">'+(d.kind==='in'?'수입결의서':'지출결의서')+'</div>'+appr+'</div>'+t1+t2+sum+rem+foot+'</div></section>';
 
   const per=d.nextPer||4;
   const chunks=[];for(let i=0;i<rest.length;i+=per)chunks.push(rest.slice(i,i+per));
@@ -2832,7 +3016,7 @@ function f(label,key,opts){opts=opts||{};
   return '<div><label>'+label+'</label><input data-k="'+key+'" '+(opts.type?'type="'+opts.type+'" ':'')+'value="'+esc(key.startsWith('d.')?cur.d[key.slice(2)]:cur[key])+'"></div>';
 }
 function renderEdit(){
-  const d=cur;
+  const d=normDoc(cur);
   $('#app').innerHTML=
    '<div class="topbar"><button id="bList">← 목록</button><h1 id="ttl">'+esc(d.no)+'</h1><span class="stat" id="stat">'+(Store.cloud?'☁ 자동 저장됨':'자동 저장됨')+'</span><button class="pri" id="bPrint">🖨 인쇄 / PDF</button></div>'
   +'<div class="wrap"><div class="tabs"><button id="tF" class="'+(tab==='form'?'on':'')+'">입력</button><button id="tP" class="'+(tab==='prev'?'on':'')+'">미리보기</button></div>'
@@ -2843,9 +3027,8 @@ function renderEdit(){
    +f('회계연도','year')+f('회계 구분','acctType')
    +'<div style="grid-column:1/-1"><label>시설명</label><input data-k="facility"></div></div></div>'
 
-  +'<div class="card"><h2>세입(출)과목 · 담당</h2><div class="grid g3">'
-   +f('관','gwan')+f('항','hang')+f('목','mok')
-   +f('지출원','spender')+f('사업','biz')+f('작성자','writer')
+  +'<div class="card"><h2>세입(출)과목 · 담당 <small>시설 종류를 고르면 해당 예산과목만 나옵니다</small></h2><div id="gwa"></div>'
+   +'<div class="grid g3" style="margin-top:10px">'+f('지출원','spender')+f('사업','biz')+f('작성자','writer')
    +'</div><div class="grid g4" style="margin-top:10px">'
    +f('발의','d.balui',{type:'date'})+f('결재','d.gyeoljae',{type:'date'})+f('출납','d.chulnap',{type:'date'})+f('등기','d.deunggi',{type:'date'})
    +'</div></div>'
@@ -2865,7 +3048,7 @@ function renderEdit(){
    +'<label><input type="radio" name="evm" value="next" '+(d.evMode==='next'?'checked':'')+'> 다음 장에 별도 배치 <span class="muted">(장당 <select id="nextPer" style="width:auto;padding:2px">'+[1,2,4,6].map(n=>'<option '+(n==d.nextPer?'selected':'')+'>'+n+'</option>').join('')+'</select>장)</span></label></div>'
    +'<div class="photos" id="photos"></div></div>'
 
-  +'<datalist id="dlA">'+ACCTS.map(a=>'<option value="'+a+'">').join('')+'</datalist><datalist id="dlF">'+FUNDS.map(a=>'<option value="'+a+'">').join('')+'</datalist>'
+  +'<datalist id="dlA"></datalist><datalist id="dlF">'+FUNDS.map(a=>'<option value="'+a+'">').join('')+'</datalist>'
   +'</div><div class="pvbox" id="pv"></div></div></div>';
 
   $('#bList').onclick=async()=>{await flushSave();renderList()};
@@ -2899,12 +3082,64 @@ function renderEdit(){
   $('#nextPer').onchange=e=>{d.nextPer=+e.target.value;touch();refreshPv()};
   $('#aAdd').onclick=()=>{d.approvals.push('');renderAppr();touch();refreshPv();const ins=document.querySelectorAll('#appr input');ins[ins.length-1].focus()};
   $('#aSave').onclick=()=>{S.approvals=d.approvals.filter(Boolean);saveS();toast('새 결의서의 기본 결재라인으로 저장했습니다')};
-  $('#iAdd').onclick=()=>{d.items.push({acct:'',memo:'',amt:'',vendor:'',fund:''});renderItems();touch();const a=document.querySelectorAll('#items [data-f=acct]');a[a.length-1].focus()};
+  $('#iAdd').onclick=()=>{d.items.push({acct:d.mok||'',memo:'',amt:'',vendor:'',fund:''});renderItems();touch();const a=document.querySelectorAll('#items [data-f=acct]');a[a.length-1].focus()};
   $('#pLive').onclick=openCamera;
   const qb=$('#pQR');if(qb)qb.onclick=openQR;
   $('#pCam').onclick=()=>$('#fileCam').click();
   $('#pGal').onclick=()=>$('#fileGal').click();
-  renderAppr();renderItems();renderPhotos();refreshPv();
+  renderGwa();renderAppr();renderItems();renderPhotos();refreshPv();
+}
+function refreshAcctList(){const dl=$('#dlA');if(dl)dl.innerHTML=acctNames(cur).map(a=>'<option value="'+esc(a)+'">').join('')}
+function fillEmptyAcct(){let ch=false;cur.items.forEach(i=>{if(!i.acct&&cur.mok){i.acct=cur.mok;ch=true}});if(ch)renderItems()}
+function renderGwa(){
+  const d=cur,box=$('#gwa');if(!box)return;
+  const t=ACC_TYPES.find(x=>x.id===d.fType),list=accList(d);
+  let h='<div class="grid g2"><div><label>시설 종류</label><select id="fType"><option value="">선택하세요</option>'
+    +ACC_TYPES.map(x=>'<option value="'+x.id+'"'+(d.fType===x.id?' selected':'')+'>'+esc(x.label)+'</option>').join('')
+    +'<option value="custom"'+(d.fType==='custom'?' selected':'')+'>직접 입력</option></select></div>'
+    +'<div><label>구분</label><div class="radio" style="margin-top:7px"><label><input type="radio" name="kind" value="out"'+(d.kind==='out'?' checked':'')+'> 세출 (지출결의서)</label>'
+    +'<label><input type="radio" name="kind" value="in"'+(d.kind==='in'?' checked':'')+'> 세입 (수입결의서)</label></div></div></div>';
+  if(t){
+    h+='<div class="muted" style="margin:8px 0">'+esc(t.note)+' · '+esc(t.rev[d.kind])+' 기준</div><div class="grid g3">'
+     +'<div><label>관</label><select id="gG"><option value="">선택</option>'+list.map(g=>'<option value="'+g[0]+'"'+(d.gwanC===g[0]?' selected':'')+'>'+g[0]+' '+esc(g[1])+'</option>').join('')+'</select></div>';
+    const g=list.find(x=>x[0]===d.gwanC);
+    h+='<div><label>항</label><select id="gH"><option value="">선택</option>'+(g?g[2].map(x=>'<option value="'+x[0]+'"'+(d.hangC===x[0]?' selected':'')+'>'+x[0]+' '+esc(x[1])+'</option>').join(''):'')+'</select></div>';
+    const hh=g&&g[2].find(x=>x[0]===d.hangC);
+    h+='<div><label>목</label><select id="gM"><option value="">선택</option>'+(hh?hh[2].map(x=>'<option value="'+x[0]+'"'+(d.mokC===x[0]?' selected':'')+'>'+x[0]+' '+esc(x[1])+'</option>').join(''):'')+'</select></div></div>';
+    const hasH=hh&&hh[1].includes('○○'),mm=hh&&hh[2].find(x=>x[0]===d.mokC),hasM=mm&&mm[1].includes('○○');
+    if(hasH||hasM){
+      h+='<div class="grid g2" style="margin-top:8px">'
+        +(hasH?'<div><label>항 이름의 ○○ 부분 입력 <span class="muted">('+esc(hh[1])+')</span></label><input id="cH" value="'+esc(d.hangCustom)+'" placeholder="예) 사업 이름"></div>':'')
+        +(hasM?'<div><label>목 이름의 ○○ 부분 입력 <span class="muted">('+esc(mm[1])+')</span></label><input id="cM" value="'+esc(d.mokCustom)+'" placeholder="예) 사업 이름"></div>':'')+'</div>';
+    }
+  }else if(d.fType==='custom'){
+    h+='<div class="grid g3" style="margin-top:10px"><div><label>관</label><input data-g="gwan" value="'+esc(d.gwan)+'"></div><div><label>항</label><input data-g="hang" value="'+esc(d.hang)+'"></div><div><label>목</label><input data-g="mok" value="'+esc(d.mok)+'"></div></div>';
+  }else{
+    h+='<div class="muted" style="margin-top:8px">시설 종류를 선택하면 관·항·목을 고를 수 있습니다. (목록에 없는 경우 "직접 입력")</div>';
+  }
+  box.innerHTML=h;
+  const syncAcct=old=>{let c=false;d.items.forEach(i=>{if(old&&i.acct===old){i.acct=d.mok;c=true}});if(c)renderItems()};
+  const redo=(o)=>{const old=o===undefined?d.mok:o;applyAcct(d);syncAcct(old);renderGwa();refreshAcctList();touch();refreshPv()};
+  $('#fType').onchange=e=>{
+    const old=d.mok;
+    d.fType=e.target.value;d.gwanC=d.hangC=d.mokC='';d.hangCustom=d.mokCustom='';
+    if(d.fType!=='custom'){d.gwan=d.hang=d.mok=''}
+    if(ACC_TYPES.some(x=>x.id===d.fType)){S.fType=d.fType;saveS()}
+    redo(old);
+  };
+  box.querySelectorAll('input[name=kind]').forEach(r=>r.onchange=()=>{
+    const old=d.mok;
+    d.kind=r.value;d.gwanC=d.hangC=d.mokC='';d.hangCustom=d.mokCustom='';
+    if(d.fType!=='custom'){d.gwan=d.hang=d.mok=''}
+    redo(old);
+  });
+  const sg=$('#gG');if(sg)sg.onchange=e=>{d.gwanC=e.target.value;d.hangC=d.mokC='';d.hangCustom=d.mokCustom='';redo()};
+  const sh=$('#gH');if(sh)sh.onchange=e=>{d.hangC=e.target.value;d.mokC='';d.hangCustom=d.mokCustom='';redo()};
+  const sm=$('#gM');if(sm)sm.onchange=e=>{const old=d.mok;d.mokC=e.target.value;d.mokCustom='';applyAcct(d);syncAcct(old);renderGwa();refreshAcctList();fillEmptyAcct();touch();refreshPv()};
+  const ch=$('#cH');if(ch)ch.oninput=()=>{d.hangCustom=ch.value;applyAcct(d);touch();refreshPv()};
+  const cm=$('#cM');if(cm)cm.oninput=()=>{const old=d.mok;d.mokCustom=cm.value;applyAcct(d);let c=false;d.items.forEach(i=>{if(i.acct===old){i.acct=d.mok;c=true}});if(c)renderItems();refreshAcctList();touch();refreshPv()};
+  box.querySelectorAll('[data-g]').forEach(el=>el.oninput=()=>{d[el.dataset.g]=el.value;touch();refreshPv()});
+  refreshAcctList();
 }
 function renderAppr(){
   const d=cur,box=$('#appr');
