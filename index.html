@@ -3268,6 +3268,9 @@ function readProf(){
   Object.keys(m).forEach(k=>{const v=g(m[k]);if(v!==null)S[k]=v});
   const kd=$('#pfKind');if(kd&&!kd.disabled)S.facKind=kd.value;
 }
+let PP={y:'',m:'',k:''};
+function perYears(){const a=new Set(docs.map(d=>String(d.year||(d.date||'').slice(0,4))).filter(Boolean));if(S.year)a.add(String(S.year));const r=[...a].sort().reverse();if(!PP.y)PP.y=r[0]||String(new Date().getFullYear());return r}
+function perDocs(){return docs.filter(d=>String(d.year||(d.date||'').slice(0,4))===PP.y&&(!PP.m||+(d.date||'').slice(5,7)===+PP.m)&&(!PP.k||d.kind===PP.k)).sort(byNo)}
 function renderList(){
   cur=null;
   const list=docs.filter(d=>{
@@ -3285,6 +3288,10 @@ function renderList(){
   +'<div class="fac" style="max-width:260px"><label>검색</label><input id="q" value="'+esc(filter)+'" placeholder="번호·사업·적요·거래처"></div>'
   +'<button class="pri" id="bNew">＋ 새 결의서</button><button id="bBank">🏦 통장 거래내역 가져오기</button><button id="bBook">📒 장부·명세서</button>'
   +'<button id="bPrintSel">🖨 선택 인쇄 (<span id="selN">'+sel.size+'</span>)</button>'
+  +'<div class="fac" style="min-width:300px"><label>기간별 결의서 출력</label><div style="display:flex;gap:4px"><select id="pY" style="width:auto">'+perYears().map(y=>'<option'+(y===PP.y?' selected':'')+'>'+y+'</option>').join('')+'</select>'
+  +'<select id="pM" style="width:auto"><option value="">연간</option>'+[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>'<option value="'+m+'"'+(+PP.m===m?' selected':'')+'>'+m+'월</option>').join('')+'</select>'
+  +'<select id="pK" style="width:auto"><option value="">전체</option><option value="out"'+(PP.k==='out'?' selected':'')+'>지출결의서</option><option value="in"'+(PP.k==='in'?' selected':'')+'>세입결의서</option></select>'
+  +'<button id="bPer">🖨 출력 (<span id="perN">0</span>건)</button></div></div>'
   +'<button id="bExp">백업 저장</button><button id="bImp">백업 불러오기</button></div>'
   +(list.length?'<table class="dl"><tr><th style="width:30px"><input type="checkbox" id="all" style="width:auto"></th><th>번호</th><th>사업 / 적요</th><th style="text-align:right">금액</th><th>증빙</th><th></th></tr>'
     +list.map(d=>{const f1=(d.items||[]).find(filled);return '<tr class="item" data-id="'+d.id+'"><td data-stop><input type="checkbox" class="ck" style="width:auto" '+(sel.has(d.id)?'checked':'')+'></td>'
@@ -3300,6 +3307,9 @@ function renderList(){
   $('#bPrintSel').onclick=()=>{if(!sel.size){toast('인쇄할 결의서를 체크하세요');return}printDocs(docs.filter(d=>sel.has(d.id)).sort(byNo))};
   $('#bBank').onclick=()=>{if(!S.saved){toast('먼저 ① 시설 정보를 입력하고 저장하세요');return}$('#fileBank').click()};
   $('#bBook').onclick=()=>openBooks();
+  const upd=()=>{PP.y=$('#pY').value;PP.m=$('#pM').value;PP.k=$('#pK').value;$('#perN').textContent=perDocs().length};
+  ['pY','pM','pK'].forEach(i=>$('#'+i).onchange=upd);upd();
+  $('#bPer').onclick=()=>{const L=perDocs();if(!L.length){toast('해당 기간의 결의서가 없습니다');return}printDocs(L)};
   $('#bExp').onclick=exportAll;$('#bImp').onclick=()=>$('#fileImp').click();
   const all=$('#all');if(all){all.checked=list.length&&list.every(d=>sel.has(d.id));all.onchange=()=>{list.forEach(d=>all.checked?sel.add(d.id):sel.delete(d.id));renderList()}}
   document.querySelectorAll('.dl tr.item').forEach(tr=>{
@@ -3583,7 +3593,8 @@ function schedClassify(){
 
 /* ---------- 장부 · 명세서 : 결의서에서 자동으로 만들어집니다 ---------- */
 const BK_TABS=[['led','총계정원장'],['cash','현금출납부'],['rin','세입결산서'],['rout','세출결산서'],['b1','세입·세출명세서(예산)'],['sbiz','사업수입명세서'],['sgov','정부보조금명세서'],['spay','인건비명세서'],['sprj','사업비명세서'],['sexp','비용명세서']];
-let BK={tab:'cash',year:'',acct:'',month:'',hl:null,exp:'',from:false};
+let BK={tab:'cash',year:'',acct:'',month:'',per:'',hl:null,exp:'',from:false};
+const perLbl=()=>BK.per?BK.per+'월':'연간';
 const bsg=n=>n<0?'△'+fmt(-n):(n?fmt(n):'');
 const bfm=n=>n?fmt(n):'';
 const corpUse=()=>S.acctDiv==='법인회계';
@@ -3599,7 +3610,7 @@ function locateMok(d,name){
   }
   return null;
 }
-function booksTx(year){
+function booksTx(year,full){
   const out=[];
   docs.filter(d=>String(d.year)===String(year)).forEach(d=>{
     normDoc(d);
@@ -3613,7 +3624,8 @@ function booksTx(year){
     });
   });
   const c=(a,b)=>String(a).localeCompare(String(b),'ko',{numeric:true});
-  return out.sort((a,b)=>c(a.date,b.date)||c(a.no,b.no)||a.row-b.row);
+  const r=out.sort((a,b)=>c(a.date,b.date)||c(a.no,b.no)||a.row-b.row);
+  return (full||!BK.per)?r:r.filter(t=>+t.date.slice(5,7)===+BK.per);
 }
 function fundCol(t){
   if(t.kind==='in'){
@@ -3632,20 +3644,26 @@ const cg=a=>'<colgroup>'+a.map(w=>'<col style="width:'+w+'%">').join('')+'</colg
 const emptyPage=(ref,title,sub,y)=>bkPage(ref,title,sub,'<div class="empty">'+esc(y)+'년도에 해당하는 거래가 없습니다.</div>');
 
 function bkLedger(year,scr,all){
-  const T=booksTx(year),corp=corpUse(),ref=corp?'[별지 제25호서식]':'[별지 제25호의2서식]',title='총 계 정 원 장('+useLbl()+')';
+  const T=booksTx(year,true),corp=corpUse(),ref=corp?'[별지 제25호서식]':'[별지 제25호의2서식]',title='총 계 정 원 장('+useLbl()+')';
+  const per=+BK.per||0;
   const map={},keys=[];T.forEach(t=>{const k=t.kind+'|'+t.acct;if(!map[k]){map[k]=[];keys.push(k)}map[k].push(t)});
   keys.sort((a,b)=>{const x=map[a][0],y=map[b][0];return (x.kind===y.kind?0:(x.kind==='in'?-1:1))||String(x.mc||'~').localeCompare(String(y.mc||'~'),'ko',{numeric:true})||x.acct.localeCompare(y.acct,'ko')});
-  const sel=(!all&&BK.acct&&map[BK.acct])?[BK.acct]:keys;
+  const sel0=(!all&&BK.acct&&map[BK.acct])?[BK.acct]:keys;
+  const sel=sel0.filter(k=>!per||map[k].some(t=>+t.date.slice(5,7)===per));
   if(!sel.length)return all?'':emptyPage(ref,title,'',year);
   let html='';
   sel.forEach(k=>{
-    const rows=map[k],name=rows[0].acct;let bal=0,si=0,so=0;
-    const lines=rows.map(t=>{const inn=t.kind==='in';bal+=inn?t.amt:-t.amt;if(inn)si+=t.amt;else so+=t.amt;
-      return '<tr'+hlc(t,scr)+'><td class="l">'+esc(name)+'</td><td>'+slash(t.date)+'</td><td class="l">'+memoCell(t,scr)+'</td><td class="rt">'+(inn?fmt(t.amt):'')+'</td><td class="rt">'+(inn?'':fmt(t.amt))+'</td><td class="rt">'+bsg(bal)+'</td></tr>'});
+    const all0=map[k],name=all0[0].acct;
+    const prior=per?all0.filter(t=>+t.date.slice(5,7)<per):[],rows=per?all0.filter(t=>+t.date.slice(5,7)===per):all0;
+    let bal=prior.reduce((a,t)=>a+(t.kind==='in'?t.amt:-t.amt),0);const pbal=bal;let si=0,so=0;
+    const lines=[];
+    if(per)lines.push('<tr><td class="l">'+esc(name)+'</td><td></td><td class="l">(전월이월)</td><td></td><td></td><td class="rt">'+bsg(pbal)+'</td></tr>');
+    rows.forEach(t=>{const inn=t.kind==='in';bal+=inn?t.amt:-t.amt;if(inn)si+=t.amt;else so+=t.amt;
+      lines.push('<tr'+hlc(t,scr)+'><td class="l">'+esc(name)+'</td><td>'+slash(t.date)+'</td><td class="l">'+memoCell(t,scr)+'</td><td class="rt">'+(inn?fmt(t.amt):'')+'</td><td class="rt">'+(inn?'':fmt(t.amt))+'</td><td class="rt">'+bsg(bal)+'</td></tr>')});
     const ch=chunk(lines,22);
-    ch.forEach((c,i)=>{html+=bkPage(ref,title,'','<div class="bk-acct">계정과목 : '+esc(name)+'　('+year+'년도)</div><table class="bk">'+cg([15,13,30,14,14,14])
+    ch.forEach((c,i)=>{html+=bkPage(ref,title,'','<div class="bk-acct">계정과목 : '+esc(name)+'　('+year+'년도'+(per?' '+per+'월':'')+')</div><table class="bk">'+cg([15,13,30,14,14,14])
       +'<tr><th>계정명</th><th>연월일</th><th>적 요</th><th>수 입</th><th>지 출</th><th>차인잔액</th></tr>'+c.join('')
-      +(i===ch.length-1?'<tr class="tot"><td colspan="3">합 계</td><td class="rt">'+bfm(si)+'</td><td class="rt">'+bfm(so)+'</td><td class="rt">'+bsg(bal)+'</td></tr>':'')+'</table>')});
+      +(i===ch.length-1?'<tr class="tot"><td colspan="3">'+(per?'월 계':'합 계')+'</td><td class="rt">'+bfm(si)+'</td><td class="rt">'+bfm(so)+'</td><td class="rt">'+bsg(bal)+'</td></tr>':'')+'</table>')});
   });
   return html;
 }
@@ -3667,9 +3685,10 @@ function bkCashMonth(year,M,scr,T){
   return html;
 }
 function bkCash(year,scr,all){
-  const T=booksTx(year),months=[...new Set(T.map(t=>+t.date.slice(5,7)))].sort((a,b)=>a-b);
+  const T=booksTx(year,true),months=[...new Set(T.map(t=>+t.date.slice(5,7)))].sort((a,b)=>a-b);
   if(!months.length)return all?'':emptyPage(corpUse()?'[별지 제24호서식]':'[별지 제24호의2서식]','현 금 출 납 부('+useLbl()+')','',year);
-  const sel=(!all&&BK.month&&months.includes(+BK.month))?[+BK.month]:(all?months:[months[0]]);
+  const sel=BK.per?months.filter(m=>m===+BK.per):months;
+  if(!sel.length)return emptyPage(corpUse()?'[별지 제24호서식]':'[별지 제24호의2서식]','현 금 출 납 부('+useLbl()+')','',year);
   return sel.map(M=>bkCashMonth(year,M,scr,T)).join('');
 }
 /* 예산 입력값(S.bud) : 연도 → "시설종류|구분|목코드" → {p:전년도,c:당해연도,n:산출근거} */
@@ -3826,13 +3845,13 @@ function refreshBkLinks(){
   box.innerHTML=L.length?L.map((x,i)=>'<button class="sm" data-bi="'+i+'">'+esc(x.label)+'</button>').join(''):'<span class="muted">금액이 있는 지출 내역을 입력하면 연결된 장부가 표시됩니다.</span>';
   box.querySelectorAll('[data-bi]').forEach(b=>b.onclick=async()=>{
     const x=L[+b.dataset.bi];await flushSave();
-    openBooks(x.tab,{year:cur.year,hl:cur.id,month:x.month,acct:x.acct,exp:x.exp});
+    openBooks(x.tab,{year:cur.year,hl:cur.id,per:x.month,acct:x.acct,exp:x.exp});
   });
 }
 function openBooks(tab,o){
   o=o||{};cur=null;
   BK.tab=tab||BK.tab;BK.year=String(o.year||BK.year||S.year||new Date().getFullYear());
-  BK.hl=o.hl||null;BK.acct=o.acct||'';BK.month=o.month||'';BK.exp=o.exp||'';BK.from=false;
+  BK.hl=o.hl||null;BK.acct=o.acct||'';BK.per=o.per||'';BK.exp=o.exp||'';BK.from=false;
   renderBooks();
 }
 function scalePages(box){
@@ -3847,31 +3866,38 @@ function renderBooks(){
   const years=bkYears();if(!years.includes(BK.year))years.unshift(BK.year);
   const T=booksTx(BK.year);
   const months=[...new Set(T.map(t=>+t.date.slice(5,7)))].sort((a,b)=>a-b);
-  if(BK.tab==='cash'&&!months.includes(+BK.month))BK.month=months[0]||'';
   let ctx='';
   if(BK.tab==='led'){
     const ks=[],seen={};T.forEach(t=>{const k=t.kind+'|'+t.acct;if(!seen[k]){seen[k]=1;ks.push(k)}});
     ctx='<div><label>계정과목</label><select id="kAcct"><option value="">전체 (계정별로 쪽 나눔)</option>'+ks.map(k=>'<option value="'+esc(k)+'"'+(BK.acct===k?' selected':'')+'>'+(k.startsWith('in')?'[세입] ':'[세출] ')+esc(k.split('|')[1])+'</option>').join('')+'</select></div>';
   }else if(BK.tab==='cash'){
-    ctx='<div><label>월</label><select id="kMonth">'+(months.length?months.map(m=>'<option value="'+m+'"'+(+BK.month===m?' selected':'')+'>'+m+'월</option>').join(''):'<option>-</option>')+'</select></div>'
-      +'<div><label>기초잔액 (전년도 이월금 · 올해 첫 거래 전 잔액)</label><input id="kOpen" inputmode="numeric" value="'+(bkOpen(BK.year)?fmt(bkOpen(BK.year)):'')+'" placeholder="0"></div>';
+    ctx='<div><label>기초잔액 (전년도 이월금 · 올해 첫 거래 전 잔액)</label><input id="kOpen" inputmode="numeric" value="'+(bkOpen(BK.year)?fmt(bkOpen(BK.year)):'')+'" placeholder="0"></div>';
   }else if(BK.tab==='sexp'){
     const ns=bkExpNames(BK.year);
     ctx='<div><label>항목</label><select id="kExp">'+ns.map(n=>'<option'+(BK.exp===n?' selected':'')+'>'+esc(n)+'</option>').join('')+'</select></div>';
   }
   $('#app').innerHTML='<div class="topbar"><button id="kList">← 목록</button><h1>📒 장부·명세서</h1><button class="pri" id="kPrint">🖨 이 화면 인쇄</button><button id="kPrintAll">전체 인쇄</button></div>'
-    +'<div class="wrap"><div class="card"><div class="grid g3"><div><label>회계연도</label><select id="kYear">'+years.map(y=>'<option'+(y===BK.year?' selected':'')+'>'+y+'</option>').join('')+'</select></div>'+ctx+'</div>'
+    +'<div class="wrap"><div class="card"><div class="grid g3"><div><label>회계연도</label><select id="kYear">'+years.map(y=>'<option'+(y===BK.year?' selected':'')+'>'+y+'</option>').join('')+'</select></div>'
+    +'<div><label>기간 (인쇄 범위)</label><select id="kPer"><option value="">연간 전체</option>'+[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>'<option value="'+m+'"'+(+BK.per===m?' selected':'')+'>'+m+'월</option>').join('')+'</select></div>'+ctx+'</div>'
     +'<div class="bktabs">'+BK_TABS.map(t=>'<button class="sm'+(BK.tab===t[0]?' on':'')+'" data-t="'+t[0]+'">'+t[1]+'</button>').join('')+'</div>'
     +'<div class="muted" style="margin-top:8px">결의서에서 자동으로 작성됩니다. 적요 끝의 <span style="color:#1a56c4;text-decoration:underline">(결의서번호)</span>를 누르면 해당 결의서가 열립니다. '
     +(BK.tab==='b1'?'<b>노란 칸</b>에 예산액·산출근거를 입력하면 결산서의 예산·증감에 반영됩니다.':'')+'</div></div>'
     +'<div class="pvbox" id="bkv" style="position:static;max-height:none;margin-top:12px"></div></div>';
   const box=$('#bkv');box.innerHTML=bkPages(BK.tab,BK.year,true,false);scalePages(box);
+  if(BK.tab==='led'){
+    const ks=[],seen={};T.forEach(t=>{const k=t.kind+'|'+t.acct;if(!seen[k]){seen[k]=1;ks.push(k)}});
+    const bar=document.createElement('div');bar.className='card';bar.id='kAccBar';
+    bar.innerHTML='<h2>계정 바로가기 <small>누르면 해당 계정의 원장이 바로 열립니다</small></h2><div class="chips"><button class="sm'+(BK.acct?'':' on')+'" data-a="">전체</button>'
+      +ks.map(k=>'<button class="sm'+(BK.acct===k?' on':'')+'" data-a="'+esc(k)+'">'+(k.startsWith('in')?'[세입] ':'[세출] ')+esc(k.split('|')[1])+'</button>').join('')+'</div>';
+    box.parentNode.appendChild(bar);
+    bar.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{BK.acct=b.dataset.a;BK.hl=null;renderBooks();window.scrollTo(0,0)});
+  }
   const h=box.querySelector('tr.hl');if(h)h.scrollIntoView({block:'center'});
   $('#kList').onclick=()=>renderList();
-  $('#kYear').onchange=e=>{BK.year=e.target.value;BK.acct='';BK.month='';renderBooks()};
+  $('#kYear').onchange=e=>{BK.year=e.target.value;BK.acct='';renderBooks()};
+  $('#kPer').onchange=e=>{BK.per=e.target.value;BK.hl=null;renderBooks()};
   document.querySelectorAll('.bktabs [data-t]').forEach(b=>b.onclick=()=>{BK.tab=b.dataset.t;BK.hl=null;renderBooks()});
   const ka=$('#kAcct');if(ka)ka.onchange=()=>{BK.acct=ka.value;renderBooks()};
-  const km=$('#kMonth');if(km)km.onchange=()=>{BK.month=km.value;renderBooks()};
   const ke=$('#kExp');if(ke)ke.onchange=()=>{BK.exp=ke.value;renderBooks()};
   const ko=$('#kOpen');if(ko)ko.onchange=()=>{S.open=S.open||{};S.open[BK.year]=num(ko.value);saveS();Store.saveProfile();renderBooks()};
   box.onclick=e=>{const a=e.target.closest('a.lk');if(a){BK.from=true;openDoc(a.dataset.doc)}};
