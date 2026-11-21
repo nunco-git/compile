@@ -3251,13 +3251,14 @@ const byNo=(a,b)=>String(a.no).localeCompare(String(b.no),'ko',{numeric:true});
 
 /* ---------- 지출결의서 페이지 HTML ---------- */
 function gridStyle(n,lay){if(n===2&&lay==='h')return 'grid-template-columns:repeat(2,1fr);grid-template-rows:1fr';const c=n<=3?1:2,r=n<=3?Math.max(1,n):Math.ceil(n/2);return 'grid-template-columns:repeat('+c+',1fr);grid-template-rows:repeat('+r+',1fr)'}
+function capOf(n,d){n=+n||0;return n-(d&&d.origNeed&&n>=2?1:0)}
 function evPad(a,n,any){return a.map(p=>evCell(p,any)).join('')+'<div class="ev empty"><span>원본서류 첨부</span></div>'.repeat(Math.max(0,n-a.length))}
 function evCell(p,any){return '<div class="ev">'+'<span class="rotbtns"><button data-rot="l" data-pid="'+esc(p.id||'')+'" title="왼쪽으로 회전">↺</button><button data-rot="r" data-pid="'+esc(p.id||'')+'" title="오른쪽으로 회전">↻</button></span>'+(any?'<div class="cap">'+esc(p.cap||'')+'&nbsp;</div>':'')+'<div class="iw"><img src="'+(p.data||'')+'" alt=""></div></div>'}
 function pagesHTML(d){
   const rows=(d.items||[]).filter(filled);
   const total=sumOf(d);
   const photos=d.photos||[];
-  const inlineN=d.inN!=null?Math.min(photos.length,+d.inN||0,d.evMax||4):(d.evMode==='inline'?Math.min(photos.length,d.evMax||4):0);
+  const inlineN=d.inN!=null?Math.min(photos.length,+d.inN||0,capOf(d.evMax||4,d)):(d.evMode==='inline'?Math.min(photos.length,capOf(d.evMax||4,d)):0);
   const inl=photos.slice(0,inlineN),rest=photos.slice(inlineN);
   const anyCap=photos.some(p=>p.cap);
 
@@ -3302,7 +3303,7 @@ function pagesHTML(d){
   }
 
   const per=d.nextPer||4;
-  const chunks=[];for(let i=0;i<rest.length;i+=per)chunks.push(rest.slice(i,i+per));
+  const chunks=[];const pc=Math.max(1,capOf(per,d));for(let i=0;i<rest.length;i+=pc)chunks.push(rest.slice(i,i+pc));
   while(chunks.length<(+d.evPgMin||0))chunks.push([]);
   chunks.forEach((c,idx)=>{
     const cols=per<=2?1:2;
@@ -4415,7 +4416,7 @@ window.addEventListener('afterprint',()=>{$('#printRoot').innerHTML=''});
 
 
 /* ---------- 책자 출력 : 미리보기 + 증빙 빈 쪽 + 한 번에 인쇄 ---------- */
-let BL={y:'',m:'',kOut:true,kIn:true,inc:null,sel:'',all:false,inPer:'',pgPer:'4'};
+let BL={y:'',m:'',kOut:true,kIn:true,inc:null,sel:'',all:false,inPer:'',pgPer:'4',orig:false};
 function blDocs(){
   return docs.filter(d=>String(d.year||(d.date||'').slice(0,4))===BL.y&&(!BL.m||+(d.date||'').slice(5,7)===+BL.m)&&((d.kind==='in')?BL.kIn:BL.kOut)).sort(byNo);
 }
@@ -4437,7 +4438,7 @@ async function renderBooklet(){
    +'<div class="wrap"><div class="grid bl2" style="grid-template-columns:clamp(320px,42vw,540px) 1fr;gap:12px;align-items:start">'
    +'<div><div style="position:sticky;top:57px;z-index:6;background:var(--bg);padding:5px 0 10px"><div class="card" style="margin:0"><h2>증빙 파일 추가 <small>'+(BL.sel?esc((L.find(d=>d.id===BL.sel)||{}).no||'')+' · 현재 '+(((L.find(d=>d.id===BL.sel)||{}).photos||[]).length)+'장':'')+'</small></h2>'
    +'<div class="rb rb1">'+[['blIn','비고칸',BL.inPer],['blPg','증빙서류칸',BL.pgPer]].map(g=>'<span class="rbg"><span class="rbl">'+g[1]+'</span>'+[['1','1개'],['2h','2좌우'],['2v','2상하'],['4','4개']].map(x=>'<label class="rbo"><input type="checkbox" name="'+g[0]+'" value="'+x[0]+'"'+(g[2]===x[0]?' checked':'')+'>'+x[1]+'</label>').join('')+'</span>').join('')+'</div>'
-   +'<div class="rb"><span class="rbl">쪽 추가</span><button class="sm" id="blCopy" title="증빙서류칸 설정(칸 수·배치)을 그대로 빈 쪽 1장 더 추가">증빙서류칸 복사</button><button class="sm" id="blBlank">빈페이지 추가</button>'+((()=>{const x=L.find(d=>d.id===BL.sel)||{};return (x.evPgMin>0||x.blankAdd>0)?'<button class="sm dng" id="blPgReset" title="추가한 쪽을 모두 취소">추가 쪽 취소</button><span class="muted" style="font-size:12px">'+(x.blankAdd>0?'빈페이지 '+x.blankAdd+'장':'')+'</span>':''})())+'</div>'
+   +'<div class="rb"><span class="rbl">쪽 추가</span><button class="sm" id="blCopy" title="증빙서류칸 설정(칸 수·배치)을 그대로 빈 쪽 1장 더 추가">증빙서류칸 복사</button><button class="sm" id="blBlank">빈페이지 추가</button><label class="rbo" style="padding:3px 9px;font-size:12px" title="칸마다 원본서류를 붙일 빈칸 1개를 남기고 파일을 넣습니다"><input type="checkbox" id="blOrig"'+(BL.orig?' checked':'')+'>원본 첨부 필요</label>'+((()=>{const x=L.find(d=>d.id===BL.sel)||{};return (x.evPgMin>0||x.blankAdd>0)?'<button class="sm dng" id="blPgReset" title="추가한 쪽을 모두 취소">추가 쪽 취소</button><span class="muted" style="font-size:12px">'+(x.blankAdd>0?'빈페이지 '+x.blankAdd+'장':'')+'</span>':''})())+'</div>'
    +'<div id="blDrop" style="margin-top:8px;border:2px dashed #8aa;border-radius:10px;padding:12px;text-align:center;background:#f8fbff">PDF·이미지를 여기에 <b>끌어다 놓으세요</b> (오른쪽 미리보기에 놓아도 됩니다)<br><button class="sm" id="blPick" style="margin-top:6px">파일 선택</button>'+(((L.find(d=>d.id===BL.sel)||{}).photos||[]).length?' <button class="sm dng" id="blClear" style="margin-top:6px">증빙 사진 모두 삭제</button>':'')+'<input type="file" id="blFile" accept="image/*,application/pdf" multiple style="display:none"></div>'
    +'<div class="muted" style="margin-top:4px;font-size:12px">선택한 칸 수대로 나누어 넣고, 비고칸이 차면 증빙서류 쪽으로 이어집니다.</div></div></div>'
    +'<div class="card" style="padding:0"><table class="dl"><tr><th style="width:30px"><input type="checkbox" id="blAll" style="width:auto"></th><th>번호</th><th>사업 / 적요</th><th style="text-align:right">금액</th></tr>'
@@ -4497,7 +4498,8 @@ async function renderBooklet(){
     const ip=BL.inPer,pp=BL.pgPer;
     if(!ip&&!pp){toast('비고칸 또는 증빙서류칸의 칸 수를 선택하세요');return}
     const mode=ip?'inline':'next',per=parseInt(ip||pp,10);
-    if(selDoc.inN==null)selDoc.inN=selDoc.evMode==='inline'?Math.min(selDoc.photos.length,selDoc.evMax||4):0;
+    selDoc.origNeed=!!BL.orig;
+    if(selDoc.inN==null)selDoc.inN=selDoc.evMode==='inline'?Math.min(selDoc.photos.length,capOf(selDoc.evMax||4,selDoc)):0;
     if(pp){selDoc.nextPer=parseInt(pp,10);selDoc.evLay=pp==='2h'?'h':'v'}else if(!selDoc.nextPer)selDoc.nextPer=4;
     if(ip){selDoc.evMode='inline';selDoc.evMax=per;selDoc.inLay=ip==='2h'?'h':'v'}else if(selDoc.evMode!=='inline')selDoc.evMode='next';
     const n0=selDoc.photos.length;
@@ -4505,7 +4507,7 @@ async function renderBooklet(){
     if(selDoc.photos.length>n0){
       let moved=0;
       if(mode==='inline'){
-        const free=Math.max(0,per-selDoc.inN),add=selDoc.photos.splice(n0),take=add.slice(0,free);
+        const free=Math.max(0,capOf(per,selDoc)-selDoc.inN),add=selDoc.photos.splice(n0),take=add.slice(0,free);
         selDoc.photos.splice(selDoc.inN,0,...take);selDoc.photos.push(...add.slice(free));selDoc.inN+=take.length;moved=add.length-take.length;
       }
       selDoc.updated=Date.now();await Store.save(selDoc);renderBooklet();
@@ -4521,8 +4523,9 @@ async function renderBooklet(){
   const pgBtn=(id,fn)=>{const b=$('#'+id);if(b)b.onclick=async()=>{const d=getSel();if(!d){toast('왼쪽에서 결의서를 먼저 선택하세요');return}fn(d);d.updated=Date.now();await Store.save(d);renderBooklet()}};
   pgBtn('blCopy',d=>{if(BL.pgPer){d.nextPer=parseInt(BL.pgPer,10);d.evLay=BL.pgPer==='2h'?'h':'v'}else if(!d.nextPer){d.nextPer=4;d.evLay='v'}
     const per=d.nextPer;
-    const inN=d.inN!=null?Math.min(d.photos.length,+d.inN||0,d.evMax||4):(d.evMode==='inline'?Math.min(d.photos.length,d.evMax||4):0);
-    const cur=Math.max(Math.ceil((d.photos.length-inN)/per),+d.evPgMin||0);d.evPgMin=Math.min(20,cur+1)});
+    const inN=d.inN!=null?Math.min(d.photos.length,+d.inN||0,capOf(d.evMax||4,d)):(d.evMode==='inline'?Math.min(d.photos.length,capOf(d.evMax||4,d)):0);
+    const cur=Math.max(Math.ceil((d.photos.length-inN)/Math.max(1,capOf(per,d))),+d.evPgMin||0);d.evPgMin=Math.min(20,cur+1)});
+  const og=$('#blOrig');if(og)og.onchange=async()=>{BL.orig=og.checked;const d=getSel();if(d){d.origNeed=BL.orig;d.updated=Date.now();await Store.save(d);renderBooklet()}};
   pgBtn('blBlank',d=>{d.blankAdd=Math.min(10,(+d.blankAdd||0)+1)});
   pgBtn('blPgReset',d=>{d.evPgMin=0;d.blankAdd=0});
   const clr=$('#blClear');if(clr)clr.onclick=async()=>{if(!confirm('이 결의서의 증빙 사진을 모두 삭제할까요?'))return;const selDoc=getSel();await Store.hydrate(selDoc);for(const p of selDoc.photos.slice())await Store.removePhoto(selDoc,p);selDoc.photos=[];selDoc.inN=0;selDoc.updated=Date.now();await Store.save(selDoc);renderBooklet()};
