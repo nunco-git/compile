@@ -140,6 +140,11 @@ label{display:block;font-size:12px;color:var(--sub);margin:0 0 3px}
 .pg-in .ev{display:flex;flex-direction:column;min-height:0;min-width:0}
 .pg-in .ev .iw{flex:1;min-height:0;position:relative}
 .pg-in .ev .iw img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center center}
+.pg-in .ev{position:relative}
+.rotbtns{display:none}
+#blPv .rotbtns{display:flex;gap:3px;position:absolute;top:3px;right:3px;z-index:3}
+#blPv .rotbtns button{background:rgba(0,0,0,.65);color:#fff;border:0;border-radius:4px;width:26px;height:26px;font-size:16px;line-height:1;cursor:pointer;padding:0}
+#blPv .rotbtns button:hover{background:#2563eb}
 .pg-in .ev .cap{font-size:8pt;text-align:left;line-height:1.3;padding-bottom:.8mm;color:#222}
 .pg-in .foot{font-size:8.5pt;margin-top:2.5mm;padding-left:1mm;display:flex;justify-content:space-between;gap:6mm}
 .pg-in .evhead{display:flex;justify-content:space-between;border-bottom:1px solid #000;padding-bottom:2mm;margin-bottom:4mm;font-size:11pt}
@@ -3242,8 +3247,8 @@ function filled(i){return (i.acct||i.memo||num(i.amt)||i.vendor||i.fund)}
 const byNo=(a,b)=>String(a.no).localeCompare(String(b.no),'ko',{numeric:true});
 
 /* ---------- 지출결의서 페이지 HTML ---------- */
-function gridStyle(n){const c=n<=3?1:2,r=n<=3?Math.max(1,n):Math.ceil(n/2);return 'grid-template-columns:repeat('+c+',1fr);grid-template-rows:repeat('+r+',1fr)'}
-function evCell(p,any){return '<div class="ev">'+(any?'<div class="cap">'+esc(p.cap||'')+'&nbsp;</div>':'')+'<div class="iw"><img src="'+(p.data||'')+'" alt=""></div></div>'}
+function gridStyle(n,lay){if(n===2&&lay==='h')return 'grid-template-columns:repeat(2,1fr);grid-template-rows:1fr';const c=n<=3?1:2,r=n<=3?Math.max(1,n):Math.ceil(n/2);return 'grid-template-columns:repeat('+c+',1fr);grid-template-rows:repeat('+r+',1fr)'}
+function evCell(p,any){return '<div class="ev">'+'<span class="rotbtns"><button data-rot="l" data-pid="'+esc(p.id||'')+'" title="왼쪽으로 회전">↺</button><button data-rot="r" data-pid="'+esc(p.id||'')+'" title="오른쪽으로 회전">↻</button></span>'+(any?'<div class="cap">'+esc(p.cap||'')+'&nbsp;</div>':'')+'<div class="iw"><img src="'+(p.data||'')+'" alt=""></div></div>'}
 function pagesHTML(d){
   const rows=(d.items||[]).filter(filled);
   const total=sumOf(d);
@@ -3275,7 +3280,7 @@ function pagesHTML(d){
   const sum='<div class="box sum"><div class="lb">금액</div><div class="vl">'+(total?'금'+fmt(total)+'원(금'+toKorean(total)+'원)':'')+'</div></div>';
   const rem='<div class="box remark"><div class="lb">비고</div><div class="vl">'
     +(d.remark?'<div class="rtext">'+esc(d.remark)+'</div>':'')
-    +(inl.length?'<div class="evgrid evbox" style="'+gridStyle(inl.length)+'">'+inl.map(p=>evCell(p,anyCap)).join('')+'</div>':'')
+    +(inl.length?'<div class="evgrid evbox" style="'+gridStyle(inl.length,d.evLay)+'">'+inl.map(p=>evCell(p,anyCap)).join('')+'</div>':'')
     +'</div></div>';
   const foot='<div class="foot"><span>시설명 : '+esc(d.facility)+'</span><span>'+(d.head?'시설장 : '+esc(d.head)+'　':'')+(d.manager?'담당자 : '+esc(d.manager):'')+'</span></div>';
   const ttl=d.kind==='in'?'수입결의서':'지출결의서';
@@ -3297,7 +3302,7 @@ function pagesHTML(d){
   chunks.forEach((c,idx)=>{
     const cols=per<=2?1:2;
     out+='<section class="page"><div class="pg-in"><div class="evhead"><span><b>증빙자료</b>　'+esc(d.biz)+'</span><span>결의서 번호 '+esc(d.no)+'　('+(idx+1)+'/'+chunks.length+')</span></div>'
-      +'<div class="evgrid evbox" style="'+gridStyle(c.length)+'">'+c.map(p=>evCell(p,anyCap)).join('')+'</div>'
+      +'<div class="evgrid evbox" style="'+gridStyle(c.length,d.evLay)+'">'+c.map(p=>evCell(p,anyCap)).join('')+'</div>'
       +'<div class="foot"><span>시설명 : '+esc(d.facility)+'</span><span></span></div></div></section>';
   });
   const bn=Math.max(0,Math.min(10,+d.blankPg||0));
@@ -3336,9 +3341,9 @@ async function fileToDataURL(file,maxSide){
   rel();return encodeFit(c);
 }
 function loadImg(url){return new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src=url})}
-async function rotateData(url){
+async function rotateData(url,ccw){
   const im=await loadImg(url);const c=document.createElement('canvas');c.width=im.naturalHeight;c.height=im.naturalWidth;
-  const x=c.getContext('2d');x.translate(c.width,0);x.rotate(Math.PI/2);x.drawImage(im,0,0);
+  const x=c.getContext('2d');if(ccw){x.translate(0,c.height);x.rotate(-Math.PI/2)}else{x.translate(c.width,0);x.rotate(Math.PI/2)}x.drawImage(im,0,0);
   return encodeFit(c,0.8);
 }
 async function enhanceData(url){
@@ -4405,13 +4410,13 @@ window.addEventListener('afterprint',()=>{$('#printRoot').innerHTML=''});
 
 
 /* ---------- 책자 출력 : 미리보기 + 증빙 빈 쪽 + 한 번에 인쇄 ---------- */
-let BL={y:'',m:'',k:'',inc:null,sel:'',all:false,mode:'next',per:'4'};
+let BL={y:'',m:'',kOut:true,kIn:true,inc:null,sel:'',all:false,mode:'next',per:'4'};
 function blDocs(){
-  return docs.filter(d=>String(d.year||(d.date||'').slice(0,4))===BL.y&&(!BL.m||+(d.date||'').slice(5,7)===+BL.m)&&(!BL.k||(BL.k==='in'?d.kind==='in':d.kind!=='in'))).sort(byNo);
+  return docs.filter(d=>String(d.year||(d.date||'').slice(0,4))===BL.y&&(!BL.m||+(d.date||'').slice(5,7)===+BL.m)&&((d.kind==='in')?BL.kIn:BL.kOut)).sort(byNo);
 }
 const pgCount=h=>(h.match(/<section class="page"/g)||[]).length;
 function openBooklet(){
-  const ys=perYears();BL.y=BL.y||PP.y||ys[0];BL.m=PP.m||'';BL.k='';BL.inc=null;BL.sel='';BL.all=false;
+  const ys=perYears();BL.y=BL.y||PP.y||ys[0];BL.m=PP.m||'';BL.kOut=true;BL.kIn=true;BL.inc=null;BL.sel='';BL.all=false;
   renderBooklet();
 }
 async function renderBooklet(){
@@ -4423,13 +4428,12 @@ async function renderBooklet(){
   $('#app').innerHTML='<div class="topbar"><button id="blBack">← 목록</button><h1>📖 책자 출력</h1>'
    +'<select id="blY" style="width:auto" title="연도">'+ys.map(y=>'<option'+(y===BL.y?' selected':'')+'>'+y+'</option>').join('')+'</select>'
    +'<select id="blM" style="width:auto" title="월"><option value="">연간</option>'+[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>'<option value="'+m+'"'+(+BL.m===m?' selected':'')+'>'+m+'월</option>').join('')+'</select>'
-   +'<select id="blK" style="width:auto" title="결의서 종류"><option value="">전체 결의서</option><option value="out"'+(BL.k==='out'?' selected':'')+'>지출결의서</option><option value="in"'+(BL.k==='in'?' selected':'')+'>세입결의서</option></select>'
-   +'<span style="display:inline-flex;gap:4px;align-items:center;border-left:1px solid var(--line);padding-left:8px" title="체크된 결의서 전체의 뒤쪽에 증빙서류를 붙일 빈 쪽을 넣습니다"><span class="muted" style="white-space:nowrap">모든 결의서에 증빙</span><select id="blAllN" style="width:auto">'+nOpt(1)+'</select><button id="blApply">적용</button><button id="blOne">1쪽씩</button><button id="blZero">0쪽</button></span>'
+   +'<label class="rbo" style="margin:0"><input type="checkbox" id="blKo" style="width:auto"'+(BL.kOut?' checked':'')+'>지출결의서</label><label class="rbo" style="margin:0"><input type="checkbox" id="blKi" style="width:auto"'+(BL.kIn?' checked':'')+'>세입결의서</label>'
    +'<button class="pri" id="blPrint">🖨 한 책자로 인쇄 (<span id="blN">0</span>쪽)</button></div>'
    +'<div class="wrap"><div class="grid bl2" style="grid-template-columns:minmax(320px,430px) 1fr;gap:12px;align-items:start">'
    +'<div><div style="position:sticky;top:57px;z-index:6;background:var(--bg);padding:5px 0 10px"><div class="card" style="margin:0"><h2>증빙 파일 추가 <small>'+(BL.sel?esc((L.find(d=>d.id===BL.sel)||{}).no||'')+' · 현재 '+(((L.find(d=>d.id===BL.sel)||{}).photos||[]).length)+'장':'')+'</small></h2>'
    +'<div class="rb"><span class="rbl">넣을 위치</span>'+[['next','증빙서류칸'],['inline','비고칸']].map(x=>'<label class="rbo"><input type="radio" name="blMode" value="'+x[0]+'"'+(BL.mode===x[0]?' checked':'')+'>'+x[1]+'</label>').join('')+'</div>'
-   +'<div class="rb"><span class="rbl">한 쪽에</span>'+[['1','1장'],['2','2장'],['4','4장']].map(x=>'<label class="rbo"><input type="radio" name="blPer" value="'+x[0]+'"'+(BL.per===x[0]?' checked':'')+'>'+x[1]+'</label>').join('')+'</div>'
+   +'<div class="rb"><span class="rbl">한 쪽에</span>'+[['1','1장'],['2v','2장 세로'],['2h','2장 가로'],['4','4장']].map(x=>'<label class="rbo"><input type="radio" name="blPer" value="'+x[0]+'"'+(BL.per===x[0]?' checked':'')+'>'+x[1]+'</label>').join('')+'</div>'
    +'<div id="blDrop" style="margin-top:8px;border:2px dashed #8aa;border-radius:10px;padding:12px;text-align:center;background:#f8fbff">PDF·이미지를 여기에 <b>끌어다 놓으세요</b> (오른쪽 미리보기에 놓아도 됩니다)<br><button class="sm" id="blPick" style="margin-top:6px">파일 선택</button>'+(((L.find(d=>d.id===BL.sel)||{}).photos||[]).length?' <button class="sm dng" id="blClear" style="margin-top:6px">증빙 사진 모두 삭제</button>':'')+'<input type="file" id="blFile" accept="image/*,application/pdf" multiple style="display:none"></div>'
    +'<div class="muted" style="margin-top:4px;font-size:12px">선택한 결의서에 최대 4개씩 칸을 나누어 넣고, 넘치면 다음 쪽으로 이어집니다.</div></div></div>'
    +'<div class="card" style="padding:0"><table class="dl"><tr><th style="width:30px"><input type="checkbox" id="blAll" style="width:auto"></th><th>번호</th><th>사업 / 적요</th><th style="text-align:right">금액</th><th style="width:78px">증빙 쪽</th></tr>'
@@ -4443,22 +4447,31 @@ async function renderBooklet(){
   };
   const drawBl=async()=>{
     const box=$('#blPv');if(!box)return;
-    const list=BL.all?L.filter(d=>BL.inc.has(d.id)):L.filter(d=>d.id===BL.sel);
+    const list=(BL.all?L.filter(d=>BL.inc.has(d.id)):L.filter(d=>d.id===BL.sel)).map(d=>docs.find(x=>x.id===d.id)||d);
     if(!list.length){box.innerHTML='<div class="empty" style="color:#fff">미리볼 결의서가 없습니다</div>';return}
     for(const d of list)await Store.hydrate(d);
     box.innerHTML=list.map(d=>pagesHTML(d)).join('');
     const W=793.7,H=1122.5,s=Math.min(1,Math.max(200,box.clientWidth-24)/W);
     [...box.querySelectorAll('.page')].forEach(pg=>{const w=document.createElement('div');w.className='pvwrap';w.style.width=W*s+'px';w.style.height=H*s+'px';pg.parentNode.insertBefore(w,pg);w.appendChild(pg);pg.style.transform='scale('+s+')'});
+    box.onclick=async e=>{
+      const bt=e.target.closest('[data-rot]');if(!bt)return;
+      const pid=bt.dataset.pid;let dd=null,pp=null;
+      for(const x of docs){const q=(x.photos||[]).find(y=>y.id===pid);if(q){dd=x;pp=q;break}}
+      if(!pp)return;
+      bt.disabled=true;
+      try{await Store.hydrate(dd);pp.data=await rotateData(await localData(pp.data),bt.dataset.rot==='l');await Store.savePhoto(dd,pp);dd.updated=Date.now();await Store.save(dd)}
+      catch(err){console.error('ROT',err&&err.stack||err);toast((err&&err.message)||'회전하지 못했습니다',5000)}
+      drawBl();
+    };
     $('#blInfo').textContent=BL.all?'· 전체 '+pgCount(list.map(d=>pagesHTML(d)).join(''))+'쪽':'';
   };
   upd();drawBl();
   $('#blBack').onclick=()=>renderList();
   $('#blY').onchange=e=>{BL.y=e.target.value;BL.inc=null;BL.sel='';renderBooklet()};
   $('#blM').onchange=e=>{BL.m=e.target.value;BL.inc=null;BL.sel='';renderBooklet()};
-  $('#blK').onchange=e=>{BL.k=e.target.value;BL.inc=null;BL.sel='';renderBooklet()};
+  $('#blKo').onchange=e=>{BL.kOut=e.target.checked;BL.inc=null;BL.sel='';renderBooklet()};
+  $('#blKi').onchange=e=>{BL.kIn=e.target.checked;BL.inc=null;BL.sel='';renderBooklet()};
   $('#blWhole').onchange=e=>{BL.all=e.target.checked;drawBl()};
-  const setAll=async n=>{for(const x of inc){const d=docs.find(y=>y.id===x.id)||x;d.blankPg=n;d.updated=Date.now();await Store.save(d)}renderBooklet()};
-  $('#blApply').onclick=()=>setAll(+$('#blAllN').value);$('#blOne').onclick=()=>setAll(1);$('#blZero').onclick=()=>setAll(0);
   $('#blAll').onchange=e=>{L.forEach(d=>e.target.checked?BL.inc.add(d.id):BL.inc.delete(d.id));renderBooklet()};
   document.querySelectorAll('#app tr.item').forEach(tr=>{
     const id=tr.dataset.id;
@@ -4479,7 +4492,8 @@ async function renderBooklet(){
     files=[...files].filter(f=>f.type.startsWith('image/')||f.type==='application/pdf'||/\.pdf$/i.test(f.name||''));
     if(!files.length){toast('이미지 또는 PDF 파일을 놓아 주세요');return}
     await Store.hydrate(selDoc);
-    const mode=BL.mode,per=+BL.per;
+    const mode=BL.mode,per=parseInt(BL.per,10),lay=BL.per==='2h'?'h':'v';
+    selDoc.evLay=lay;
     if(mode==='next'){selDoc.evMode='next';selDoc.nextPer=per}else{selDoc.evMode='inline';selDoc.evMax=per}
     const n0=selDoc.photos.length;
     await addFiles(files,selDoc);
