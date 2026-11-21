@@ -118,7 +118,8 @@ label{display:block;font-size:12px;color:var(--sub);margin:0 0 3px}
 .pg-in .appr .col{width:18mm;border-right:1px solid #000}
 .pg-in .appr .col:last-child{border-right:0}
 .pg-in .appr .col .n{height:6.5mm;border-bottom:1px solid #000;text-align:center;font-size:9pt;line-height:6.5mm;overflow:hidden;white-space:nowrap}
-.pg-in .appr .col .s{height:17mm}
+.pg-in .appr .col .s{height:17mm;display:flex;align-items:center;justify-content:center}
+.pg-in .appr .col .s img.stamp{max-width:15mm;max-height:15mm;object-fit:contain}
 .pg-in table{border-collapse:collapse;width:100%;table-layout:fixed}
 .pg-in td,.pg-in th{border:1px solid #000;height:8.4mm;padding:0 1.5mm;text-align:center;font-weight:normal;font-size:9.5pt;overflow:hidden;white-space:nowrap}
 .pg-in th{white-space:pre}
@@ -2859,42 +2860,51 @@ function acctNames(d){
 
 /*PARSE_START*/
 /* 적요 → 세입/세출 · 관 · 항 · 목 자동 분류 (공백을 뺀 글자로 비교). 목 이름은 선택한 시설종류의 별표에서 찾습니다. */
+/* 규칙: [적요 패턴, [목 이름 후보(앞이 우선; 선택한 시설종류 별표에 있는 첫 목)], 설명, (선택)해당 시설종류 id들]. 후보가 null이면 "자동 분류하지 않고 직접 선택"입니다.
+   목의 범위는 [별표 2·4·6·8·10]의 '내역(명세)' 란을 기준으로 했습니다. */
 const CLS_OUT=[
  [/원장.*(급여|월급)/,[/^원장급여$/],'원장 급여'],
  [/퇴직/,[/^퇴직금/],'퇴직금 지급'],
  [/4대보험|사회보험|국민연금|건강보험|고용보험|산재보험|법정부담/,[/^사회보험부담금$/,/^법정부담금$/],'사회보험 기관부담금'],
- [/시간외|야간근무|명절휴가|수당/,[/^제수당$/,/^각종수당$/,/^보육교직원수당$/],'수당 지급'],
+ [/시간외|야간근무|휴일근무|명절휴가|수당|상여/,[/^제수당$/,/^각종수당$/,/^보육교직원수당$/],'수당 지급'],
  [/일용|일당|임시직|대체인력|대체교사/,[/^일용잡급$/,/^기타인건비$/],'일용직 임금'],
  [/급여|월급|봉급|임금|인건비/,[/^급여$/,/^보육교직원급여$/],'급여 지급'],
- [/복리후생|직원(간식|회식|복지)|건강검진|경조/,[/^기타후생경비$/,/^복리후생비$/],'직원 복리후생비'],
+ [/건강진단|건강검진|복리후생|경조|직원복지/,[/^기타후생경비$/,/^복리후생비$/,/^기타운영비$/],'직원 복리후생비'],
+ [/급량|직원(식대|식비|급식|회식|간식)|회식|상용(의류|피복)/,[/^기타운영비$/,/^복리후생비$/],'직원 급량·회식'],
  [/출장|여비|숙박|KTX|항공|택시/i,[/^여비$/,/^기타운영비$/],'출장 여비'],
  [/회의|다과|간담회/,[/^회의비$/],'회의 다과 구입'],
- [/업무추진|접대|직책/,[/^기관운영비$/,/^업무추진비$/],'업무추진비'],
- [/전기요금|수도요금|가스요금|통신|전화|인터넷|우편|공공요금|한국전력|상하수도/,[/^공공요금/],'공공요금'],
- [/자동차세|재산세|세금|공과금|제세|면허세|주민세|취득세/,[/^제세공과금$/,/공과금/],'제세공과금'],
- [/주유|유류|휘발유|LPG|자동차(보험|수리|정비|검사)|차량(유지|수리|정비|보험)|하이패스|주차/i,[/^차량비$/],'차량 유지비'],
- [/난방|등유|보일러유|연료|LNG|펠릿|화목/i,[/^연료비$/,/^기타운영비$/],'난방 연료 구입'],
+ [/업무추진|접대/,[/^기관운영비$/,/^업무추진비$/],'업무추진비'],
+ [/직책(보조|급)/,[/^직책보조비$/,/^직책급$/],'직책보조비'],
+ [/오물|정화조|쓰레기|폐기물|전기요금|수도요금|가스요금|통신|전화|인터넷|우편|공공요금|한국전력|상하수도|전신/,[/^공공요금/],'공공요금'],
+ [/자동차세|재산세|세금|공과금|제세|면허세|주민세|취득세|협회|가입비|회비|보험료|화재보험|자동차보험|배상책임/,[/^제세공과금$/,/^공공요금및.*공과금$/,/공과금/],'제세공과금·보험료'],
+ [/주유|유류|휘발유|경유|LPG차|자동차(수리|정비|검사)|차량(유지|수리|정비|소모)|세차|엔진오일|타이어/i,[/^차량비$/],'차량 유지비'],
+ [/난방|등유|보일러유|연료|LNG|펠릿|화목|취사가스/i,[/^연료비$/,/^기타운영비$/],'난방 연료 구입'],
  [/임차|임대료|렌탈|렌트/,[/^임차료$/,/^기타운영비$/],'임차료'],
- [/증축|신축|개축|리모델링|기능보강|확장공사/,[/^시설비$/],'시설 공사'],
- [/시설(보수|수리|개선)|보수공사|도배|장판|방수|수리|누수|페인트|전기공사|배관|CCTV|소방|승강기|환경개선|개보수|철거/i,[/^시설장비유지비$/,/^시설장비유지비$/],'시설 보수'],
+ [/개보수|환경개선|리모델링/,[/^시설비$/],'시설 개보수',['ltc']],
+ [/증축|신축|개축|기능보강|확장공사/,[/^시설비$/],'시설 공사'],
+ [/시설(보수|수리|개선)|보수공사|도배|장판|방수|수리|누수|페인트|전기공사|배관|CCTV|소방|승강기|개보수|철거/i,[/^시설장비유지비$/],'시설 보수'],
  [/자산취득|비품|가구|책상|의자|냉장고|세탁기|에어컨|컴퓨터|노트북|프린터|TV|텔레비전|청소기|집기|기자재|캐비닛|공기청정기|전자레인지|정수기|침대|매트리스/i,[/^자산취득비$/],'비품 구입'],
+ [/판매용구|판매복지용구/,[/^판매용구취득비$/],'판매용구 취득'],
+ [/대여용구|대여복지용구/,[/^대여용구취득비$/],'대여용구 취득'],
+ [/복지용구/,null,'복지용구(대여·판매 구분 필요)',['ltc']],
  [/의료|병원|약품|약국|진료|치료|처방|한의원|의원|물리치료/,[/^의료비$/,/^수용기관경비$/],'의료비 지급'],
- [/피복|의복|내의|속옷|양말|이불|침구/,[/^피복비$/],'피복 구입'],
+ [/피복|의복|내의|속옷|양말|이불|침구|교복/,[/^피복비$/,/^수용기관경비$/],'피복 구입'],
  [/장의|장례|조의|부의/,[/^장의비$/],'장의비'],
- [/기저귀|생필품|생활용품|입소자(용품|물품)|세제|세면|위생용품|물티슈|화장지|휴지|비누|샴푸|칫솔|치약/,[/^생계비$/,/^수용기관경비$/,/^수용비및수수료$/],'입소자 생활용품 구입'],
- [/식재료|식자재|부식|급식|간식|반찬|쌀|김치|과일|채소|육류|생선|우유|도시락|식비|식대|음식/,[/^급식·간식재료비$/,/^생계비$/,/^급식비$/,/^특별급식비$/,/^○○사업비$/,/^수용비및수수료$/],'식재료 구입'],
- [/교재|교구|도서|장난감|놀잇감|교육자료/,[/^교재·교구구입비$/,/^도서구입비$/,/^수용비및수수료$/],'교재·교구 구입'],
+ [/기저귀|생필품|생활용품|입소자(용품|물품)|세제|세면|위생용품|물티슈|화장지|휴지|비누|샴푸|칫솔|치약|수건/,[/^수용기관경비$/,/^생계비$/,/^수용비및수수료$/],'입소자 생활용품 구입'],
+ [/간식|우유|음료/,[/^특별급식비$/,/^급식·간식재료비$/,/^생계비$/,/^○○사업비$/,/^수용비및수수료$/],'간식 구입'],
+ [/식재료|식자재|부식|급식|반찬|쌀|김치|장유|김장|과일|채소|육류|생선|도시락|식비|식대|음식/,[/^생계비$/,/^급식·간식재료비$/,/^급식비$/,/^특별급식비$/,/^○○사업비$/,/^수용비및수수료$/],'식재료 구입'],
+ [/교재|교구|장난감|놀잇감|교육자료/,[/^교재·교구구입비$/,/^도서구입비$/,/^수용비및수수료$/],'교재·교구 구입'],
  [/특별활동|방과후/,[/^특별활동비지출$/],'특별활동비'],
- [/프로그램|강사|공연|체험|견학|나들이|행사|캠프|재활|사업비/,[/^행사비$/,/^프로그램사업비$/,/^○○사업비$/],'프로그램 운영비'],
+ [/프로그램|강사|공연|체험|견학|나들이|행사|캠프|재활|사업비/,[/^프로그램사업비$/,/^행사비$/,/^○○사업비$/],'프로그램 운영비'],
  [/연수|직무교육|보수교육|워크숍|세미나/,[/^교직원연수·연구비$/,/^수용비및수수료$/],'직무교육 참가비'],
- [/사무용품|문구|복사|인쇄|토너|소모품|용지|제본|현수막|수수료|사진인화|보험료|화재보험|배상책임|소독|방역|청소|세탁|세척|정화조|폐기물|세무|회계|감사|기장|보안|경비|소프트웨어|홈페이지|도메인|송금|이체/,[/^수용비및수수료$/,/^수용비/,/^기타운영비$/],'사무용품 구입'],
+ [/사무용품|문구|복사|인쇄|토너|소모품|용지|제본|현수막|수수료|사진인화|소독|방역|청소|세탁|세척|소프트웨어|홈페이지|도메인|기장|세무|회계감사|통행료|하이패스|주차|운송|택배|등기|공고|포장|도서/,[/^수용비및수수료$/,/^수용비/,/^기타운영비$/],'사무용품·수수료'],
  [/이자/,[/^이자지(급금|불금)$/],'대출이자 지급'],
  [/상환/,[/^원금상환금$/,/차입금상환$/],'원금 상환'],
  [/반환|환급|환수/,[/^반환금$/,/^보조금반환금$/],'보조금 반환'],
  [/전출/,[/^법인회계전출금$/,/전출금$/],'전출금'],
  [/과년도/,[/^과년도지출$/],'과년도 지출'],
  [/예비비/,[/^예비비$/],'예비비'],
- [/잡지출|기타지출/,[/^잡지출$/],'잡지출'],
+ [/잡지출|기타지출|보상금|사례금|소송/,[/^잡지출$/],'잡지출'],
  [/구입|구매|물품|용품/,[/^수용비및수수료$/,/^수용비/,/^기타운영비$/],'물품 구입']
 ];
 const CLS_IN=[
@@ -2919,7 +2929,7 @@ const CLS_IN=[
  [/사업수입|수익사업/,[/^○○사업수입$/],'사업수입'],
  [/잡수입|기타수입/,[/^기타잡수입$/,/^잡수입$/,/^그밖의잡수입$/],'잡수입']
 ];
-const IN_RX=/수입|입금|수령|수납|징수|이월|전입|교부|후원금|기부|성금|기탁|이용료|본인부담|요양급여|예금이자|이자수익|보육료/;
+const IN_RX=/수입|입금|수령|수납|징수|이월|전입|교부|후원금|기부|성금|기탁|이용료|본인부담|요양급여|예금이자|이자수익|보육료|매각/;
 const OUT_RX=/지출|지급|구입|구매|결제|납부|송금|상환|수수료|사용|집행|지불|정산|이체|대금/;
 function resolveMok(list,names){
   for(const rx of names)for(const g of list)for(const h of g[2])for(const m of h[2]){
@@ -2931,8 +2941,10 @@ function classifyText(text,fType,forceKind){
   const t=ACC_TYPES.find(x=>x.id===fType);if(!t)return null;
   const s=String(text||'').replace(/\s+/g,'');if(!s)return null;
   const kind=forceKind||((IN_RX.test(s)&&!OUT_RX.test(s))?'in':'out');
-  for(const [rx,names,memo] of (kind==='in'?CLS_IN:CLS_OUT)){
+  for(const [rx,names,memo,types] of (kind==='in'?CLS_IN:CLS_OUT)){
     if(!rx.test(s))continue;
+    if(types&&types.indexOf(fType)<0)continue;
+    if(names===null)return null;
     const r=resolveMok(t[kind],names);
     if(r)return Object.assign({kind,memo},r);
   }
@@ -3129,7 +3141,8 @@ function pagesHTML(d){
   const inl=photos.slice(0,inlineN),rest=photos.slice(inlineN);
   const anyCap=photos.some(p=>p.cap);
 
-  const appr='<div class="appr"><div class="lab">결재</div>'+(d.approvals||[]).map(n=>'<div class="col"><div class="n">'+esc(n)+'</div><div class="s"></div></div>').join('')+'</div>';
+  const stampFor=n=>/시설장|원장|관장|대표|이사장/.test(n)?S.stampHead:(/담당|작성|실무|회계/.test(n)?S.stampMgr:'');
+  const appr='<div class="appr"><div class="lab">결재</div>'+(d.approvals||[]).map(n=>{const im=stampFor(String(n||''));return '<div class="col"><div class="n">'+esc(n)+'</div><div class="s">'+(im?'<img class="stamp" src="'+im+'">':'')+'</div></div>'}).join('')+'</div>';
   const t1='<table class="t1"><colgroup><col style="width:10%"><col style="width:25%"><col style="width:12%"><col style="width:22%"><col style="width:9%"><col style="width:22%"></colgroup>'
    +'<tr><td colspan="4" class="l">결의서 번호 :<span style="margin-left:14mm">'+esc(d.no)+'</span></td><td colspan="2" class="big">'+esc(d.year)+' 년도 ( '+esc(d.acctType)+' ) 회계</td></tr>'
    +'<tr><th colspan="2">세 입 (출) 과 목</th><td colspan="2"></td><th>발의</th><td>'+slash(d.d.balui)+'</td></tr>'
@@ -3257,6 +3270,15 @@ function renderLogin(msg){
 const sel=new Set();
 let filter='';
 let profOpen=false;
+function stampBox(k,lb,v){return '<div><label>'+lb+'</label><div style="display:flex;gap:8px;align-items:center"><div style="width:64px;height:64px;border:1px dashed #9ab;display:flex;align-items:center;justify-content:center;background:#fff">'+(v?'<img src="'+v+'" style="max-width:60px;max-height:60px">':'<span class="muted" style="font-size:11px">없음</span>')+'</div><button class="sm" type="button" id="stUp'+k+'">이미지 등록</button>'+(v?'<button class="sm dng" type="button" id="stDel'+k+'">삭제</button>':'')+'<input type="file" accept="image/*" id="stF'+k+'" style="display:none"></div></div>'}
+async function stampData(file){
+  const bm=await createImageBitmap(file);let side=240;
+  for(let t=0;t<4;t++){
+    const sc=Math.min(1,side/Math.max(bm.width,bm.height)),c=document.createElement('canvas');c.width=Math.round(bm.width*sc);c.height=Math.round(bm.height*sc);
+    const x=c.getContext('2d');x.drawImage(bm,0,0,c.width,c.height);
+    const u=c.toDataURL('image/png');if(u.length<120000||t===3){bm.close&&bm.close();return u}side=Math.round(side*.7);
+  }
+}
 function profHTML(){
   const yr=new Date().getFullYear(),ys=[];for(let y=yr-3;y<=yr+1;y++)ys.push(y);if(S.year&&ys.indexOf(+S.year)<0)ys.push(+S.year);
   if(S.saved&&!profOpen)return '<div class="card prof"><h2>① 시설 정보 <button class="sm" id="pfEdit">수정</button></h2><div class="muted">'+esc(profSummary(S))+'</div></div>';
@@ -3268,6 +3290,8 @@ function profHTML(){
    +'<div><label>시설종류</label><select id="pfKind"'+(corp?' disabled':'')+'>'+Object.keys(FAC_KIND).map(k=>'<option value="'+k+'"'+(S.facKind===k?' selected':'')+'>'+FAC_KIND[k]+'</option>').join('')+'</select></div></div>'
    +'<div class="grid g2" style="margin-top:10px"><div style="grid-column:1/-1">'+inp('pfFac','시설명',S.facility,'예) ○○실버홈')+'</div>'
    +inp('pfHead','시설장',S.head)+inp('pfMgr','담당자',S.manager)+inp('pfSp','지출원',S.spender)+inp('pfWr','작성(작성자)',S.writer)+'</div>'
+   +'<div class="grid g2" style="margin-top:10px">'+stampBox('Head','시설장 결재인(도장·서명)',S.stampHead)+stampBox('Mgr','담당자 결재인(도장·서명)',S.stampMgr)+'</div>'
+   +'<div class="muted">결재인 이미지는 결의서 결재란의 해당 칸(시설장·원장 / 담당·작성)에 자동으로 들어가 인쇄됩니다. 배경이 흰색인 사진도 괜찮습니다.</div>'
    +'<div class="muted" style="margin-top:8px">'+(S.acctDiv==='수익사업회계'?'수익사업회계는 별표 과목표가 없어 관·항·목을 직접 입력합니다.':'회계구분·시설종류에 맞는 별표 예산과목으로 적요가 자동 분류됩니다.')+'</div>'
    +'<div class="row" style="margin-top:10px"><button class="pri" id="pfSave">저장</button>'+(S.saved?'<button id="pfCancel">취소</button>':'')+'</div></div>';
 }
@@ -3275,6 +3299,12 @@ function bindProf(){
   const e=$('#pfEdit');if(e)e.onclick=()=>{profOpen=true;renderList()};
   const c=$('#pfCancel');if(c)c.onclick=()=>{profOpen=false;renderList()};
   const dv=$('#pfDiv');if(dv)dv.onchange=()=>{S.acctDiv=dv.value;readProf();renderList()};
+  [['Head','stampHead'],['Mgr','stampMgr']].forEach(([k,f])=>{
+    const up=$('#stUp'+k),fi=$('#stF'+k),dl=$('#stDel'+k);if(!up)return;
+    up.onclick=()=>fi.click();
+    fi.onchange=async()=>{if(!fi.files[0])return;try{readProf();S[f]=await stampData(fi.files[0]);saveS();renderList()}catch(e){toast('이미지를 읽지 못했습니다')}};
+    if(dl)dl.onclick=()=>{readProf();S[f]='';saveS();renderList()};
+  });
   const sv=$('#pfSave');if(!sv)return;
   sv.onclick=async()=>{
     readProf();
@@ -3308,7 +3338,7 @@ function renderList(){
   +profHTML()
   +'<div class="listhead">'
   +'<div class="fac" style="max-width:260px"><label>검색</label><input id="q" value="'+esc(filter)+'" placeholder="번호·사업·적요·거래처"></div>'
-  +'<button class="pri" id="bNew">＋ 새 결의서</button><button id="bBank">🏦 통장 거래내역 가져오기</button><button id="bBook">📒 장부·명세서</button>'
+  +'<button class="pri" id="bNew">＋ 새 결의서</button><button id="bBank">🏦 통장 거래내역 가져오기</button><button id="bBook">📒 장부·명세서</button>'+(docs.some(isMixed)?'<button id="bSplitAll" style="background:#fff3cd">⚠ 목이 섞인 결의서 나누기 ('+docs.filter(isMixed).length+')</button>':'')
   +'<button id="bPrintSel">🖨 선택 인쇄 (<span id="selN">'+sel.size+'</span>)</button>'
   +'<div style="width:96px"><label>출력 연도</label><select id="pY">'+perYears().map(y=>'<option'+(y===PP.y?' selected':'')+'>'+y+'</option>').join('')+'</select></div>'
   +'<div style="width:96px"><label>출력 월</label><select id="pM"><option value="">연간</option>'+[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>'<option value="'+m+'"'+(+PP.m===m?' selected':'')+'>'+m+'월</option>').join('')+'</select></div>'
@@ -3316,7 +3346,7 @@ function renderList(){
   +'<button id="bExp">백업 저장</button><button id="bImp">백업 불러오기</button></div>'
   +(list.length?'<table class="dl"><tr><th style="width:30px"><input type="checkbox" id="all" style="width:auto"></th><th>번호</th><th>사업 / 적요</th><th style="text-align:right">금액</th><th>증빙</th><th></th></tr>'
     +list.map(d=>{const f1=(d.items||[]).find(filled);return '<tr class="item" data-id="'+d.id+'"><td data-stop><input type="checkbox" class="ck" style="width:auto" '+(sel.has(d.id)?'checked':'')+'></td>'
-      +'<td>'+(d.kind==='in'?'<span class="tag in">수입</span>':'')+esc(d.no)+'</td><td>'+esc(d.biz)+(f1?' <span class="muted">'+esc(f1.memo||f1.acct)+'</span>':'')+'</td>'
+      +'<td>'+(d.kind==='in'?'<span class="tag in">수입</span>':'')+esc(d.no)+(isMixed(d)?' <span class="tag" style="background:#f5c518;color:#000" title="목이 서로 다른 항목이 섞여 있습니다">목 혼재</span>':'')+'</td><td>'+esc(d.biz)+(f1?' <span class="muted">'+esc(f1.memo||f1.acct)+'</span>':'')+'</td>'
       +'<td class="r">'+fmt(sumOf(d))+'</td><td>'+(d.photos||[]).length+'장</td>'
       +'<td data-stop style="white-space:nowrap"><button class="sm bDup">복제</button> <button class="sm dng bDel">삭제</button></td></tr>'}).join('')+'</table>'
     :'<div class="empty">아직 결의서가 없습니다. <b>＋ 새 결의서</b>를 눌러 시작하세요.</div>')
@@ -3328,6 +3358,7 @@ function renderList(){
   $('#bPrintSel').onclick=()=>{if(!sel.size){toast('인쇄할 결의서를 체크하세요');return}printDocs(docs.filter(d=>sel.has(d.id)).sort(byNo))};
   $('#bBank').onclick=()=>{if(!S.saved){toast('먼저 ① 시설 정보를 입력하고 저장하세요');return}$('#fileBank').click()};
   $('#bBook').onclick=()=>openBooks();
+  const sa=$('#bSplitAll');if(sa)sa.onclick=async()=>{if(!confirm('목이 서로 다른 항목이 섞인 결의서를 목별로 나눕니다. (증빙 사진은 원래 결의서에 남습니다) 진행할까요?'))return;let n=0;for(const d of docs.filter(isMixed).slice())n+=await splitByMok(d);toast('결의서 '+n+'건을 새로 만들었습니다',4000);renderList()};
   const upd=()=>{PP.y=$('#pY').value;PP.m=$('#pM').value;PP.k='';const L=perDocs();$('#nAll').textContent=L.length;$('#nOut').textContent=L.filter(d=>d.kind!=='in').length;$('#nIn').textContent=L.filter(d=>d.kind==='in').length};
   ['pY','pM'].forEach(i=>$('#'+i).onchange=upd);upd();
   const perPrint=k=>{PP.k=k;const L=perDocs().filter(d=>!k||(k==='in'?d.kind==='in':d.kind!=='in'));PP.k='';if(!L.length){toast('해당 기간의 '+(k==='in'?'세입':k==='out'?'지출':'')+'결의서가 없습니다');return}printDocs(L)};
@@ -3409,6 +3440,7 @@ function renderEdit(){
    +f('발의','d.balui',{type:'date'})+f('결재','d.gyeoljae',{type:'date'})+f('출납','d.chulnap',{type:'date'})+f('등기','d.deunggi',{type:'date'})
    +'</div></div>'
 
+  +'<div id="mixBar"></div>'
   +'<div class="card"><h2>연결된 장부·명세서 <small>누르면 해당 장부로 이동하고 이 결의서의 줄이 노랗게 표시됩니다</small></h2><div class="chips" id="bkChips"></div></div>'
 
   +'<div class="card"><h2>결재라인 <small>오른쪽 위 결재란에 표시됩니다</small></h2><div class="chips" id="appr"></div>'
@@ -3613,6 +3645,33 @@ function schedClassify(){
 
 
 
+/* ---------- 목이 섞인 결의서 : 목별로 나누기 ---------- */
+function mokGroups(d){
+  const g={},ord=[];
+  (d.items||[]).forEach(it=>{if(!filled(it))return;const k=it.acct||d.mok||'';if(!g[k]){g[k]=[];ord.push(k)}g[k].push(it)});
+  return ord.map(k=>({acct:k,items:g[k]}));
+}
+const isMixed=d=>mokGroups(d).length>1;
+function setMokByName(d,name){
+  const L=locateMok(d,name);
+  if(L){d.gwanC=L.g;d.hangC=L.h;d.mokC=L.m;d.hangCustom=d.mokCustom='';applyAcct(d)}
+  else{d.mokC=''}
+  if(!L||d.mok!==name){d.mok=name}
+  d.acctAuto=false;
+}
+async function splitByMok(d){
+  const G=mokGroups(d);if(G.length<2)return 0;
+  const keep=G.find(x=>x.acct===d.mok)||G[0];let made=0;
+  for(const grp of G){
+    if(grp===keep)continue;
+    const c=clone(d);c.id=uid();c.photos=[];c.items=grp.items.map(clone);c.no=autoNo(c.date);c.autoNo=true;c.updated=Date.now();
+    setMokByName(c,grp.acct);c.items.forEach(i=>{i.acct=grp.acct});
+    docs.push(c);await Store.save(c);made++;
+  }
+  const moved=new Set(G.filter(x=>x!==keep).flatMap(x=>x.items));
+  d.items=(d.items||[]).filter(i=>!moved.has(i));
+  d.updated=Date.now();await Store.save(d);return made;
+}
 /* ---------- 장부 · 명세서 : 결의서에서 자동으로 만들어집니다 ---------- */
 const BK_TABS=[['led','총계정원장'],['cash','현금출납부'],['rin','세입결산서'],['rout','세출결산서'],['b1','세입·세출명세서(예산)'],['sbiz','사업수입명세서'],['sgov','정부보조금명세서'],['spay','인건비명세서'],['sprj','사업비명세서'],['sexp','비용명세서']];
 let BK={tab:'cash',year:'',acct:'',month:'',per:'',hl:null,exp:'',from:false};
@@ -4179,8 +4238,15 @@ $('#fileGal').onchange=e=>{const fs=[...e.target.files];e.target.value='';addFil
 /* ---------- 미리보기 ---------- */
 let pvT;
 function refreshPv(){clearTimeout(pvT);pvT=setTimeout(drawPv,120)}
+function refreshMix(){
+  const box=$('#mixBar');if(!box||!cur)return;
+  if(!isMixed(cur)){box.innerHTML='';return}
+  const G=mokGroups(cur);
+  box.innerHTML='<div class="banner" style="background:#fff3cd;border-color:#e0b100"><b>⚠ 목이 서로 다른 항목이 한 결의서에 있습니다.</b> ('+G.map(x=>esc(x.acct||'미정')+' '+x.items.length+'건').join(' · ')+')<br>결의서는 목마다 따로 작성해야 합니다. <button class="sm pri" id="bSplit">목별로 결의서 나누기</button></div>';
+  $('#bSplit').onclick=async()=>{const d=cur;await flushSave();const n=await splitByMok(d);toast('목별로 결의서 '+n+'건을 새로 만들었습니다',4000);renderList()};
+}
 function drawPv(){
-  refreshBkLinks();
+  refreshBkLinks();refreshMix();
   const box=$('#pv');if(!box||!cur)return;
   const keep=box.scrollTop;
   box.innerHTML=pagesHTML(cur);
