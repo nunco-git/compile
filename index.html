@@ -189,6 +189,11 @@ tr.hl td{background:#fff3b0!important}
 .bktabs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .bktabs button.on{background:#2b6cb0;color:#fff;border-color:#2b6cb0}
 @media print{a.lk{color:#000;text-decoration:none}tr.hl td{background:none!important}.bkp input.bud{border:0;background:none}}
+.rb{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
+.rb .rbl{font-size:12px;color:var(--sub);width:54px}
+.rb .rbo{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:18px;padding:4px 12px;cursor:pointer;background:#fff;font-size:13.5px;margin:0}
+.rb .rbo input{width:auto;margin:0}
+.rb .rbo:has(input:checked){background:#e7f0ff;border-color:#2563eb;color:#1d4ed8;font-weight:bold}
 @media(max-width:900px){.bl2{grid-template-columns:1fr!important}}
 details.more{margin-top:10px}details.more summary{cursor:pointer;font-size:12.5px;color:var(--sub)}
 </style>
@@ -4400,7 +4405,7 @@ window.addEventListener('afterprint',()=>{$('#printRoot').innerHTML=''});
 
 
 /* ---------- 책자 출력 : 미리보기 + 증빙 빈 쪽 + 한 번에 인쇄 ---------- */
-let BL={y:'',m:'',k:'',inc:null,sel:'',all:false};
+let BL={y:'',m:'',k:'',inc:null,sel:'',all:false,mode:'next',per:'4'};
 function blDocs(){
   return docs.filter(d=>String(d.year||(d.date||'').slice(0,4))===BL.y&&(!BL.m||+(d.date||'').slice(5,7)===+BL.m)&&(!BL.k||(BL.k==='in'?d.kind==='in':d.kind!=='in'))).sort(byNo);
 }
@@ -4422,8 +4427,8 @@ async function renderBooklet(){
    +'<button class="pri" id="blPrint">🖨 한 책자로 인쇄 (<span id="blN">0</span>쪽)</button></div>'
    +'<div class="wrap"><div class="grid bl2" style="grid-template-columns:minmax(320px,430px) 1fr;gap:12px;align-items:start">'
    +'<div><div style="position:sticky;top:57px;z-index:6;background:var(--bg);padding:5px 0 10px"><div class="card" style="margin:0"><h2>증빙 파일 추가 <small>'+(BL.sel?esc((L.find(d=>d.id===BL.sel)||{}).no||'')+' · 현재 '+(((L.find(d=>d.id===BL.sel)||{}).photos||[]).length)+'장':'')+'</small></h2>'
-   +'<div class="row" style="align-items:flex-end"><div><label>넣을 위치</label><select id="blMode"><option value="next">증빙서류 쪽(결의서 다음 장)</option><option value="inline">비고칸 안</option></select></div>'
-   +'<div style="width:100px"><label>한 쪽에</label><select id="blPer"><option value="4" selected>4개</option><option value="2">2개</option><option value="1">1개</option></select></div></div>'
+   +'<div class="rb"><span class="rbl">넣을 위치</span>'+[['next','증빙서류칸'],['inline','비고칸']].map(x=>'<label class="rbo"><input type="radio" name="blMode" value="'+x[0]+'"'+(BL.mode===x[0]?' checked':'')+'>'+x[1]+'</label>').join('')+'</div>'
+   +'<div class="rb"><span class="rbl">한 쪽에</span>'+[['1','1장'],['2','2장'],['4','4장']].map(x=>'<label class="rbo"><input type="radio" name="blPer" value="'+x[0]+'"'+(BL.per===x[0]?' checked':'')+'>'+x[1]+'</label>').join('')+'</div>'
    +'<div id="blDrop" style="margin-top:8px;border:2px dashed #8aa;border-radius:10px;padding:12px;text-align:center;background:#f8fbff">PDF·이미지를 여기에 <b>끌어다 놓으세요</b> (오른쪽 미리보기에 놓아도 됩니다)<br><button class="sm" id="blPick" style="margin-top:6px">파일 선택</button>'+(((L.find(d=>d.id===BL.sel)||{}).photos||[]).length?' <button class="sm dng" id="blClear" style="margin-top:6px">증빙 사진 모두 삭제</button>':'')+'<input type="file" id="blFile" accept="image/*,application/pdf" multiple style="display:none"></div>'
    +'<div class="muted" style="margin-top:4px;font-size:12px">선택한 결의서에 최대 4개씩 칸을 나누어 넣고, 넘치면 다음 쪽으로 이어집니다.</div></div></div>'
    +'<div class="card"><div class="row" style="align-items:flex-end"><div style="width:110px"><label>모든 결의서에</label><select id="blAllN">'+nOpt(1)+'</select></div><button id="blApply">증빙 빈 쪽 일괄 적용</button><button id="blOne">모두 1쪽씩</button><button id="blZero">모두 0쪽</button></div>'
@@ -4465,6 +4470,8 @@ async function renderBooklet(){
   $('#blPrint').onclick=()=>{if(!inc.length){toast('인쇄할 결의서를 체크하세요');return}printDocs(inc)};
   window.scrollTo(0,sy);
   /* 증빙 파일 추가 */
+  document.querySelectorAll('input[name=blMode]').forEach(r=>r.onchange=()=>{BL.mode=r.value});
+  document.querySelectorAll('input[name=blPer]').forEach(r=>r.onchange=()=>{BL.per=r.value});
   const getSel=()=>docs.find(d=>d.id===BL.sel);
   const dz=$('#blDrop'),fi=$('#blFile');
   const put=async files=>{
@@ -4473,7 +4480,7 @@ async function renderBooklet(){
     files=[...files].filter(f=>f.type.startsWith('image/')||f.type==='application/pdf'||/\.pdf$/i.test(f.name||''));
     if(!files.length){toast('이미지 또는 PDF 파일을 놓아 주세요');return}
     await Store.hydrate(selDoc);
-    const mode=$('#blMode').value,per=+$('#blPer').value;
+    const mode=BL.mode,per=+BL.per;
     if(mode==='next'){selDoc.evMode='next';selDoc.nextPer=per}else{selDoc.evMode='inline';selDoc.evMax=per}
     const n0=selDoc.photos.length;
     await addFiles(files,selDoc);
