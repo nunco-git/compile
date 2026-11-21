@@ -2538,6 +2538,15 @@ const pad=n=>String(n).padStart(2,'0');
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
 const slash=s=>s?String(s).replace(/-/g,'/'):'';
 const clone=o=>JSON.parse(JSON.stringify(o));
+const MAX_ORIG=25*1024*1024;       // 원본 파일 1개 최대 크기(스토리지)
+function dataURLtoBlob(u){const m=/^data:([^;,]+)(;base64)?,(.*)$/.exec(u)||[];const bin=m[2]?atob(m[3]):decodeURIComponent(m[3]);const a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return new Blob([a],{type:m[1]||'image/jpeg'})}
+function blobToDataURL(b){return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=()=>no(r.error);r.readAsDataURL(b)})}
+/* 스토리지(https) 사진을 편집·복제·백업하려면 화면으로 내려받아야 합니다. (버킷 CORS 설정 필요 — cors.json 참고) */
+async function localData(u){
+  if(!u||String(u).indexOf('data:')===0)return u;
+  try{const r=await fetch(u);if(!r.ok)throw new Error(r.status);return await blobToDataURL(await r.blob())}
+  catch(e){throw new Error('스토리지 사진을 내려받지 못했습니다. 버킷 CORS 설정(cors.json)이 필요합니다.')}
+}
 let toastT;
 function toast(m,ms){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),ms||2200)}
 
@@ -2584,12 +2593,12 @@ const DB={db:null,mem:new Map(),ok:false,
    users/{uid}/docs/{docId}                  : 결의서 본문 (photos는 id·설명만)
    users/{uid}/docs/{docId}/photos/{photoId} : { data: "data:image/jpeg;base64,..." }  */
 const Store={
-  cloud:false,fb:null,db:null,auth:null,user:null,unsub:null,cache:new Map(),
+  cloud:false,fb:null,db:null,auth:null,st:null,stBad:false,user:null,unsub:null,cache:new Map(),
   async loadFirebase(){
     
     const base='https://www.gstatic.com/firebasejs/'+FB_VER+'/';
-    const [a,au,fs]=await Promise.all([import(base+'firebase-app.js'),import(base+'firebase-auth.js'),import(base+'firebase-firestore.js')]);
-    return Object.assign({},a,au,fs);
+    const [a,au,fs,st]=await Promise.all([import(base+'firebase-app.js'),import(base+'firebase-auth.js'),import(base+'firebase-firestore.js'),import(base+'firebase-storage.js').catch(()=>null)]);
+    return Object.assign({},a,au,fs,st||{});
   },
   async init(onUser){
     if(!FIREBASE_CONFIG){this.cloud=false;await DB.open();return}
@@ -2599,6 +2608,7 @@ const Store={
     try{this.db=fb.initializeFirestore(app,{localCache:fb.persistentLocalCache({tabManager:fb.persistentMultipleTabManager()})})}
     catch(e){this.db=fb.getFirestore(app)}
     this.auth=fb.getAuth(app);
+    try{this.st=fb.getStorage?fb.getStorage(app):null}catch(e){this.st=null}
     fb.onAuthStateChanged(this.auth,u=>{this.user=u;onUser(u)});
   },
   col(){return this.fb.collection(this.db,'users',this.user.uid,'docs')},
@@ -2631,15 +2641,48 @@ const Store={
   /* 결의서 저장 */
   save(d){
     if(!this.cloud)return DB.put(d);
-    const c=clone(d);c.photos=(d.photos||[]).map(p=>({id:p.id,cap:p.cap||''}));delete c.id;
+    const c=clone(d);c.photos=(d.photos||[]).map(p=>{const o={id:p.id,cap:p.cap||''};['sp','op','on','v'].forEach(k=>{if(p[k]!==undefined&&p[k]!=='')o[k]=p[k]});return o});delete c.id;
     return this.fb.setDoc(this.ref(d.id),c).catch(e=>{console.error(e);toast('저장 실패: '+(e.code||e.message),4000)});
   },
-  savePhoto(d,p){
-    if(!this.cloud)return Promise.resolve();
+  /* 사진 저장: 스토리지가 되면 화면용 사진 + 원본 파일을 스토리지에, 안 되면 Firestore에 (opt.file = 원본 파일) */
+  async savePhoto(d,p,opt){
+    if(!this.cloud)return;
+    if(String(p.data||'').indexOf('data:')!==0)return;      // 이미 스토리지에 있는 사진(https)은 다시 올리지 않음
     this.cache.set(p.id,p.data);
+    if(this.st&&!this.stBad){
+      try{
+        const fb=this.fb,base='users/'+this.user.uid+'/evidence/'+d.id+'/';
+        const sp=p.sp||(base+p.id+'.jpg');
+        await fb.uploadBytes(fb.ref(this.st,sp),dataURLtoBlob(p.data),{contentType:'image/jpeg'});
+        p.sp=sp;p.v=Date.now();
+        if(opt&&opt.file){
+          const f=opt.file,sh=opt.shared||{};
+          if(!sh.pr){
+            const ext=((f.name||'').match(/\.[A-Za-z0-9]{1,5}$/)||[''])[0].toLowerCase()||(f.type==='application/pdf'?'.pdf':'.jpg');
+            sh.path=base+p.id+'_orig'+ext;sh.name=f.name||('camera'+ext);
+            sh.pr=f.size>MAX_ORIG?Promise.reject(new Error('too big')):fb.uploadBytes(fb.ref(this.st,sh.path),f,{contentType:f.type||'application/octet-stream'});
+          }
+          try{await sh.pr;p.op=sh.path;p.on=sh.name}catch(e){console.error(e);toast('원본 파일은 스토리지에 올리지 못했습니다 (25MB 초과 등). 화면용 사진은 저장되었습니다.',5000)}
+        }
+        {const live=(typeof docs!=='undefined'&&docs.find(x=>x.id===d.id))||d;
+         let q=(live.photos||[]).find(x=>x.id===p.id);
+         if(!q&&live!==d){q={id:p.id,cap:p.cap||''};(live.photos=live.photos||[]).push(q)}
+         if(q){q.sp=p.sp;q.v=p.v;if(p.op){q.op=p.op;q.on=p.on}}
+         this.save(live)}
+        return;
+      }catch(e){
+        console.error(e);this.stBad=true;
+        toast('스토리지에 올리지 못해 데이터베이스에 저장합니다 ('+(e.code||e.message)+') — Firebase 콘솔에서 Storage를 시작했는지 확인하세요',6000);
+      }
+    }
     return this.fb.setDoc(this.pref(d.id,p.id),{data:p.data}).catch(e=>{console.error(e);toast('사진 저장 실패: '+(e.code||e.message),4000)});
   },
-  async removePhoto(d,p){if(!this.cloud)return;this.cache.delete(p.id);try{await this.fb.deleteDoc(this.pref(d.id,p.id))}catch(e){console.error(e)}},
+  async removePhoto(d,p){
+    if(!this.cloud)return;this.cache.delete(p.id);
+    try{await this.fb.deleteDoc(this.pref(d.id,p.id))}catch(e){console.error(e)}
+    if(this.st&&p.sp){try{await this.fb.deleteObject(this.fb.ref(this.st,p.sp))}catch(e){console.error(e)}}
+    if(this.st&&p.op&&!(d.photos||[]).some(q=>q!==p&&q.op===p.op)){try{await this.fb.deleteObject(this.fb.ref(this.st,p.op))}catch(e){console.error(e)}}
+  },
   async remove(d){
     if(!this.cloud)return DB.del(d.id);
     for(const p of (d.photos||[]))await this.removePhoto(d,p);
@@ -2651,12 +2694,68 @@ const Store={
     await Promise.all((d.photos||[]).map(async p=>{
       if(p.data)return;
       if(this.cache.has(p.id)){p.data=this.cache.get(p.id);return}
+      if(p.sp&&this.st){
+        try{const u=await this.fb.getDownloadURL(this.fb.ref(this.st,p.sp));p.data=/^https?:/.test(u)?u+(u.indexOf('?')>=0?'&':'?')+'v='+(p.v||0):u;this.cache.set(p.id,p.data);return}
+        catch(e){console.error(e)}
+      }
       try{const s=await this.fb.getDoc(this.pref(d.id,p.id));
         if(s.exists()){p.data=s.data().data;this.cache.set(p.id,p.data)}}catch(e){console.error(e)}
       if(!p.data)p.data='data:image/gif;base64,R0lGODlhAQABAAAAACw=';
     }));
   }
 };
+
+
+/* ---------- 컴퓨터 폴더에 원본 저장 (Chrome·Edge 등 PC 브라우저) ---------- */
+const Folder={
+  h:null,pend:[],sup:!!window.showDirectoryPicker,
+  idb(){return new Promise((ok,no)=>{const r=indexedDB.open('jichul_fs',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})},
+  async get(){try{const db=await this.idb();return await new Promise(ok=>{const q=db.transaction('kv').objectStore('kv').get('dir');q.onsuccess=()=>ok(q.result||null);q.onerror=()=>ok(null)})}catch(e){return null}},
+  async set(h){try{const db=await this.idb();await new Promise(ok=>{const t=db.transaction('kv','readwrite');if(h)t.objectStore('kv').put(h,'dir');else t.objectStore('kv').delete('dir');t.oncomplete=ok;t.onerror=ok})}catch(e){}},
+  async load(){if(this.sup)this.h=await this.get()},
+  async pick(){const h=await window.showDirectoryPicker({id:'jichul',mode:'readwrite'});this.h=h;await this.set(h);await this.flush(true)},
+  async clear(){this.h=null;this.pend=[];await this.set(null)},
+  async perm(ask){
+    if(!this.h)return false;
+    try{const o={mode:'readwrite'};if(await this.h.queryPermission(o)==='granted')return true;if(ask&&await this.h.requestPermission(o)==='granted')return true}catch(e){}
+    return false;
+  },
+  safe(x){return String(x==null?'':x).replace(/[\\/:*?"<>|]/g,'_').trim()||'_'},
+  async write(j){
+    let dir=this.h;
+    for(const part of [j.year,j.mon,j.no])dir=await dir.getDirectoryHandle(this.safe(part),{create:true});
+    const fh=await dir.getFileHandle(j.name,{create:true});const w=await fh.createWritable();await w.write(j.file);await w.close();
+  },
+  /* 증빙 원본 1개를 연도/월/결의서번호/ 폴더에 저장 (허용이 없으면 대기열에 보관) */
+  async add(d,file){
+    if(!this.h)return;
+    d.fseq=(d.fseq||0)+1;
+    const j={year:(d.year||(d.date||'').slice(0,4)||'연도미정')+'년',mon:((d.date||'').slice(5,7)||'00')+'월',no:d.no||'번호없음',file,name:''};
+    j.name=this.safe(d.no)+'_'+String(d.fseq).padStart(2,'0')+'_'+this.safe(file.name||'증빙');
+    if(await this.perm(true)){try{await this.write(j);return}catch(e){console.error(e)}}
+    this.pend.push(j);if(view==='list')renderList();
+    toast('폴더 접근 허용이 필요해 '+this.pend.length+'건을 대기시켰습니다. 목록 화면의 [대기 파일 저장]을 눌러 주세요',6000);
+  },
+  async flush(ask){
+    if(!this.pend.length)return;
+    if(!(await this.perm(ask))){toast('폴더 접근을 허용해야 저장할 수 있습니다');return}
+    let n=0;const rest=[];
+    for(const j of this.pend){try{await this.write(j);n++}catch(e){console.error(e);rest.push(j)}}
+    this.pend=rest;toast('폴더에 '+n+'건 저장했습니다'+(rest.length?' (실패 '+rest.length+'건)':''));if(view==='list')renderList();
+  }
+};
+function folderHTML(){
+  if(!Folder.sup)return '<div class="muted" style="margin-bottom:10px">📁 폴더 저장은 PC의 Chrome·Edge에서만 쓸 수 있습니다. (이 브라우저는 지원하지 않습니다)</div>';
+  return '<div class="card"><h2>증빙 원본 저장 폴더 <small>선택 사항 · PC 전용</small></h2><div class="row" style="align-items:center">'
+    +'<div class="muted" style="flex:1;min-width:200px">'+(Folder.h?'📁 <b>'+esc(Folder.h.name)+'</b> 폴더에 <b>연도/월/결의서번호/</b> 아래로 증빙 <b>원본 파일</b>이 저장됩니다.':'폴더를 지정하면 올리는 증빙의 원본(사진·PDF)이 이 컴퓨터 폴더에도 저장됩니다.')+'</div>'
+    +'<button class="sm" id="fdPick">'+(Folder.h?'폴더 변경':'📁 폴더 지정')+'</button>'+(Folder.h?'<button class="sm dng" id="fdClear">해제</button>':'')
+    +(Folder.pend.length?'<button class="sm pri" id="fdFlush">대기 파일 저장 ('+Folder.pend.length+')</button>':'')+'</div></div>';
+}
+function bindFolder(){
+  const p=$('#fdPick');if(p)p.onclick=async()=>{try{await Folder.pick();renderList()}catch(e){if(e&&e.name!=='AbortError')toast('폴더를 지정하지 못했습니다')}};
+  const c=$('#fdClear');if(c)c.onclick=async()=>{await Folder.clear();renderList()};
+  const f=$('#fdFlush');if(f)f.onclick=()=>Folder.flush(true);
+}
 
 /* ---------- 설정 ---------- */
 const S_DEF=()=>({facility:'',approvals:['담당자','시설장'],acctType:'시설',spender:'',writer:'',
@@ -3349,6 +3448,7 @@ function renderList(){
   +(Store.cloud?'<div class="banner cld">☁ 로그인한 계정에 저장됩니다. 폰에서 올린 자료가 PC에서도 보입니다.</div>'
      :'<div class="banner loc">📱 지금은 <b>이 기기에만</b> 저장되는 모드입니다. (Firebase 설정을 넣으면 구글 로그인·기기 간 동기화가 켜집니다)</div>')
   +profHTML()
+  +folderHTML()
   +'<div class="listhead">'
   +'<div class="fac" style="max-width:260px"><label>검색</label><input id="q" value="'+esc(filter)+'" placeholder="번호·사업·적요·거래처"></div>'
   +'<button class="pri" id="bNew">＋ 새 결의서</button><button id="bBank">🏦 통장 거래내역 가져오기</button><button id="bBook">📒 장부·명세서</button><button id="bBooklet">📖 책자 출력(미리보기)</button>'+(docs.some(isMixed)?'<button id="bSplitAll" style="background:#fff3cd">⚠ 목이 섞인 결의서 나누기 ('+docs.filter(isMixed).length+')</button>':'')
@@ -3365,7 +3465,7 @@ function renderList(){
     :'<div class="empty">아직 결의서가 없습니다. <b>＋ 새 결의서</b>를 눌러 시작하세요.</div>')
   +'<p class="muted" style="margin-top:12px">PDF로 저장하려면 인쇄 창에서 "PDF로 저장"을 선택하세요. 백업 저장은 사진까지 포함한 JSON 파일을 내려받습니다.</p></div>';
   const out=$('#bOut');if(out)out.onclick=()=>Store.logout();
-  bindProf();
+  bindProf();bindFolder();
   $('#q').oninput=e=>{filter=e.target.value;const p=e.target.selectionStart;renderList();const q=$('#q');q.focus();q.setSelectionRange(p,p)};
   $('#bNew').onclick=()=>{if(!S.saved){toast('먼저 ① 시설 정보를 입력하고 저장하세요');const e=$('#pfFac');if(e)e.focus();return}const d=newDoc();docs.push(d);Store.save(d);openDoc(d.id)};
   $('#bPrintSel').onclick=()=>{if(!sel.size){toast('인쇄할 결의서를 체크하세요');return}printDocs(docs.filter(d=>sel.has(d.id)).sort(byNo))};
@@ -3386,7 +3486,9 @@ function renderList(){
     tr.querySelector('.bDup').onclick=async()=>{
       const o=docs.find(d=>d.id===id);toast('복제 중…');await Store.hydrate(o);
       const c=clone(o);c.id=uid();c.no=autoNo(c.date);c.autoNo=true;c.updated=Date.now();
-      c.photos.forEach(p=>{p.id=uid();delete p.orig});
+      let lost=0;
+      for(const p of c.photos){p.id=uid();delete p.orig;delete p.sp;delete p.op;delete p.on;delete p.v;try{p.data=await localData(p.data)}catch(e){p.data='';lost++}}
+      c.photos=c.photos.filter(p=>p.data);if(lost)toast(lost+'장은 복사하지 못했습니다 (스토리지 CORS 설정 필요)',5000);
       docs.push(c);for(const p of c.photos)await Store.savePhoto(c,p);await Store.save(c);renderList();toast('복제했습니다');
     };
     tr.querySelector('.bDel').onclick=async()=>{
@@ -3397,7 +3499,11 @@ function renderList(){
 }
 async function exportAll(){
   toast('백업 파일 만드는 중…',6000);
-  const copy=[];for(const d of docs){await Store.hydrate(d);copy.push(d)}
+  const copy=[];let bad=0;
+  for(const d of docs){await Store.hydrate(d);const c=clone(d);
+    for(const p of (c.photos||[])){try{p.data=await localData(p.data)}catch(e){bad++;p.data=''}delete p.sp;delete p.op;delete p.on;delete p.v}
+    copy.push(c)}
+  if(bad)toast('스토리지 사진 '+bad+'장을 백업에 담지 못했습니다 (CORS 설정 필요)',6000);
   const blob=new Blob([JSON.stringify({v:1,settings:S,docs:copy})],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='지출결의서_백업_'+today()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 }
@@ -3406,7 +3512,7 @@ $('#fileImp').onchange=async e=>{
   try{const j=JSON.parse(await f.text());if(!Array.isArray(j.docs))throw 0;
     toast('불러오는 중…',6000);
     for(const d of j.docs){if(!d.id)continue;
-      for(const p of (d.photos||[])){if(!p.id)p.id=uid();await Store.savePhoto(d,p)}
+      for(const p of (d.photos||[])){if(!p.id)p.id=uid();delete p.sp;delete p.op;delete p.on;delete p.v;await Store.savePhoto(d,p)}
       await Store.save(d);const i=docs.findIndex(x=>x.id===d.id);if(i>=0)docs[i]=d;else docs.push(d)}
     if(j.settings){Object.assign(S,j.settings);saveS()}
     toast(j.docs.length+'건 불러왔습니다');renderList();
@@ -3615,9 +3721,9 @@ function renderPhotos(){
     else if(a==='l'&&i>0){[P[i-1],P[i]]=[P[i],P[i-1]]}
     else if(a==='r'&&i<P.length-1){[P[i+1],P[i]]=[P[i],P[i+1]]}
     else if(a==='ocr'){queueRead(d,P[i],null,true);return}
-    else if(a==='rot'){P[i].data=await rotateData(P[i].data);if(P[i].orig)P[i].orig=await rotateData(P[i].orig);Store.savePhoto(d,P[i])}
+    else if(a==='rot'){try{P[i].data=await rotateData(await localData(P[i].data));if(P[i].orig)P[i].orig=await rotateData(await localData(P[i].orig))}catch(e){toast(e.message,5000);return}Store.savePhoto(d,P[i])}
     else if(a==='enh'){
-      if(P[i].orig){P[i].data=P[i].orig;delete P[i].orig}else{P[i].orig=P[i].data;P[i].data=await enhanceData(P[i].data)}
+      if(P[i].orig){P[i].data=P[i].orig;delete P[i].orig}else{try{const ld=await localData(P[i].data);P[i].orig=ld;P[i].data=await enhanceData(ld)}catch(e){toast(e.message,5000);return}}
       Store.savePhoto(d,P[i]);
     }
     renderPhotos();touch();refreshPv();
@@ -4182,14 +4288,15 @@ async function addFiles(files,target){
   for(const f of files){
     const isPdf=f.type==='application/pdf'||/\.pdf$/i.test(f.name||'');
     if(!isPdf&&!f.type.startsWith('image/'))continue;
+    await Folder.add(d,f);
     if(d.photos.length>=MAX_PHOTOS){toast('사진은 결의서 1건에 최대 '+MAX_PHOTOS+'장까지 넣을 수 있습니다');break}
     try{
       if(isPdf){
-        const r=await pdfToPhotos(f,d);let first=true;
-        for(const p of r.photos){if(d.photos.length>=MAX_PHOTOS)break;d.photos.push(p);Store.savePhoto(d,p);n++;
+        const r=await pdfToPhotos(f,d);let first=true;const sh={};
+        for(const p of r.photos){if(d.photos.length>=MAX_PHOTOS)break;d.photos.push(p);Store.savePhoto(d,p,{file:f,shared:sh});n++;
           if(first&&S.autoOcr!==false&&!noOcr){first=false;const useText=r.text.replace(/\s/g,'').length>=30?r.text:null;queueRead(d,p,useText)}}
       }else{
-        const p={id:uid(),data:await fileToDataURL(f),cap:''};d.photos.push(p);Store.savePhoto(d,p);n++;
+        const p={id:uid(),data:await fileToDataURL(f),cap:''};d.photos.push(p);Store.savePhoto(d,p,{file:f});n++;
         if(S.autoOcr!==false&&!noOcr)queueRead(d,p);
       }
     }
@@ -4218,7 +4325,9 @@ async function openCamera(){
     const s=Math.min(1,1400/Math.max(v.videoWidth,v.videoHeight));
     const c=document.createElement('canvas');c.width=Math.round(v.videoWidth*s);c.height=Math.round(v.videoHeight*s);
     const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(v,0,0,c.width,c.height);
-    const p={id:uid(),data:encodeFit(c),cap:''};d.photos.push(p);Store.savePhoto(d,p);n++;if(S.autoOcr!==false)queueRead(d,p);
+    const p={id:uid(),data:encodeFit(c),cap:''};d.photos.push(p);n++;if(S.autoOcr!==false)queueRead(d,p);
+    const fc=document.createElement('canvas');fc.width=v.videoWidth;fc.height=v.videoHeight;fc.getContext('2d').drawImage(v,0,0);
+    fc.toBlob(async b=>{const f=new File([b],'camera_'+Date.now()+'.jpg',{type:'image/jpeg'});await Folder.add(d,f);Store.savePhoto(d,p,{file:f})},'image/jpeg',0.92);
     ov.querySelector('#camN').textContent=n+'장 촬영';
     const fl=ov.querySelector('.flash');fl.classList.add('on');setTimeout(()=>fl.classList.remove('on'),60);
   };
@@ -4343,21 +4452,22 @@ async function renderBooklet(){
   $('#blM').onchange=e=>{BL.m=e.target.value;BL.inc=null;BL.sel='';renderBooklet()};
   $('#blK').onchange=e=>{BL.k=e.target.value;BL.inc=null;BL.sel='';renderBooklet()};
   $('#blWhole').onchange=e=>{BL.all=e.target.checked;drawBl()};
-  const setAll=async n=>{for(const d of inc){d.blankPg=n;d.updated=Date.now();await Store.save(d)}renderBooklet()};
+  const setAll=async n=>{for(const x of inc){const d=docs.find(y=>y.id===x.id)||x;d.blankPg=n;d.updated=Date.now();await Store.save(d)}renderBooklet()};
   $('#blApply').onclick=()=>setAll(+$('#blAllN').value);$('#blOne').onclick=()=>setAll(1);$('#blZero').onclick=()=>setAll(0);
   $('#blAll').onchange=e=>{L.forEach(d=>e.target.checked?BL.inc.add(d.id):BL.inc.delete(d.id));renderBooklet()};
   document.querySelectorAll('#app tr.item').forEach(tr=>{
-    const id=tr.dataset.id,d=L.find(x=>x.id===id);
+    const id=tr.dataset.id;
     tr.onclick=e=>{if(e.target.closest('[data-stop]'))return;BL.sel=id;BL.all=false;renderBooklet()};
     tr.querySelector('.bk1').onchange=e=>{e.target.checked?BL.inc.add(id):BL.inc.delete(id);renderBooklet()};
-    tr.querySelector('.bn').onchange=async e=>{d.blankPg=+e.target.value;d.updated=Date.now();await Store.save(d);BL.sel=id;renderBooklet()};
+    tr.querySelector('.bn').onchange=async e=>{const d=docs.find(x=>x.id===id);d.blankPg=+e.target.value;d.updated=Date.now();await Store.save(d);BL.sel=id;renderBooklet()};
   });
   $('#blPrint').onclick=()=>{if(!inc.length){toast('인쇄할 결의서를 체크하세요');return}printDocs(inc)};
   window.scrollTo(0,sy);
   /* 증빙 파일 추가 */
-  const selDoc=L.find(d=>d.id===BL.sel);
+  const getSel=()=>docs.find(d=>d.id===BL.sel);
   const dz=$('#blDrop'),fi=$('#blFile');
   const put=async files=>{
+    const selDoc=getSel();
     if(!selDoc){toast('왼쪽에서 결의서를 먼저 선택하세요');return}
     files=[...files].filter(f=>f.type.startsWith('image/')||f.type==='application/pdf'||/\.pdf$/i.test(f.name||''));
     if(!files.length){toast('이미지 또는 PDF 파일을 놓아 주세요');return}
@@ -4374,7 +4484,7 @@ async function renderBooklet(){
     el.ondragover=e=>{e.preventDefault();el.style.outline='3px dashed #2b6cb0'};
     el.ondragleave=()=>{el.style.outline=''};
     el.ondrop=e=>{e.preventDefault();el.style.outline='';put(e.dataTransfer.files)}});
-  const clr=$('#blClear');if(clr)clr.onclick=async()=>{if(!confirm('이 결의서의 증빙 사진을 모두 삭제할까요?'))return;await Store.hydrate(selDoc);for(const p of selDoc.photos.slice())await Store.removePhoto(selDoc,p);selDoc.photos=[];selDoc.updated=Date.now();await Store.save(selDoc);renderBooklet()};
+  const clr=$('#blClear');if(clr)clr.onclick=async()=>{if(!confirm('이 결의서의 증빙 사진을 모두 삭제할까요?'))return;const selDoc=getSel();await Store.hydrate(selDoc);for(const p of selDoc.photos.slice())await Store.removePhoto(selDoc,p);selDoc.photos=[];selDoc.updated=Date.now();await Store.save(selDoc);renderBooklet()};
 }
 
 /* ---------- 시작 ---------- */
@@ -4390,6 +4500,7 @@ function applySnapshot(arr){
   renderList();
 }
 (async function init(){
+  Folder.load();
   
   try{
     await Store.init(u=>{

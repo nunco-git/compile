@@ -1,0 +1,15 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // 지출결의서 앱 : 본인 계정 폴더만 읽기·쓰기 (파일 1개 30MB 미만)
+    match /users/{uid}/evidence/{docId}/{file} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+                            && request.resource.size < 30 * 1024 * 1024;
+    }
+    // 그 밖의 경로는 모두 차단
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
