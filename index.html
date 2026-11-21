@@ -144,6 +144,9 @@ label{display:block;font-size:12px;color:var(--sub);margin:0 0 3px}
 .pg-in .foot{font-size:8.5pt;margin-top:2.5mm;padding-left:1mm;display:flex;justify-content:space-between;gap:6mm}
 .pg-in .evhead{display:flex;justify-content:space-between;border-bottom:1px solid #000;padding-bottom:2mm;margin-bottom:4mm;font-size:11pt}
 .pg-in .evhead b{font-size:13pt}
+.pg-in .blankbody{flex:1;display:flex;align-items:center;justify-content:center}
+.pg-in .blankbody .hint{color:#c8c8c8;font-size:10pt}
+@media print{.pg-in .blankbody .hint{visibility:hidden}}
 
 /* ===== 인쇄 ===== */
 #printRoot{display:none}
@@ -183,6 +186,7 @@ tr.hl td{background:#fff3b0!important}
 .bktabs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .bktabs button.on{background:#2b6cb0;color:#fff;border-color:#2b6cb0}
 @media print{a.lk{color:#000;text-decoration:none}tr.hl td{background:none!important}.bkp input.bud{border:0;background:none}}
+@media(max-width:900px){.bl2{grid-template-columns:1fr!important}}
 details.more{margin-top:10px}details.more summary{cursor:pointer;font-size:12.5px;color:var(--sub)}
 </style>
 </head>
@@ -3189,6 +3193,12 @@ function pagesHTML(d){
       +'<div class="evgrid" style="grid-template-columns:repeat('+cols+',1fr)">'+c.map(p=>evCell(p,anyCap)).join('')+'</div>'
       +'<div class="foot"><span>시설명 : '+esc(d.facility)+'</span><span></span></div></div></section>';
   });
+  const bn=Math.max(0,Math.min(10,+d.blankPg||0));
+  for(let i=1;i<=bn;i++){
+    out+='<section class="page"><div class="pg-in"><div class="evhead"><span><b>증빙서류</b>　'+esc(d.biz)+'</span><span>결의서 번호 '+esc(d.no)+'　('+i+'/'+bn+')</span></div>'
+      +'<div class="blankbody"><span class="hint">증빙서류를 붙이는 면</span></div>'
+      +'<div class="foot"><span>시설명 : '+esc(d.facility)+'</span><span></span></div></div></section>';
+  }
   return out;
 }
 
@@ -3338,7 +3348,7 @@ function renderList(){
   +profHTML()
   +'<div class="listhead">'
   +'<div class="fac" style="max-width:260px"><label>검색</label><input id="q" value="'+esc(filter)+'" placeholder="번호·사업·적요·거래처"></div>'
-  +'<button class="pri" id="bNew">＋ 새 결의서</button><button id="bBank">🏦 통장 거래내역 가져오기</button><button id="bBook">📒 장부·명세서</button>'+(docs.some(isMixed)?'<button id="bSplitAll" style="background:#fff3cd">⚠ 목이 섞인 결의서 나누기 ('+docs.filter(isMixed).length+')</button>':'')
+  +'<button class="pri" id="bNew">＋ 새 결의서</button><button id="bBank">🏦 통장 거래내역 가져오기</button><button id="bBook">📒 장부·명세서</button><button id="bBooklet">📖 책자 출력(미리보기)</button>'+(docs.some(isMixed)?'<button id="bSplitAll" style="background:#fff3cd">⚠ 목이 섞인 결의서 나누기 ('+docs.filter(isMixed).length+')</button>':'')
   +'<button id="bPrintSel">🖨 선택 인쇄 (<span id="selN">'+sel.size+'</span>)</button>'
   +'<div style="width:96px"><label>출력 연도</label><select id="pY">'+perYears().map(y=>'<option'+(y===PP.y?' selected':'')+'>'+y+'</option>').join('')+'</select></div>'
   +'<div style="width:96px"><label>출력 월</label><select id="pM"><option value="">연간</option>'+[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>'<option value="'+m+'"'+(+PP.m===m?' selected':'')+'>'+m+'월</option>').join('')+'</select></div>'
@@ -3358,6 +3368,7 @@ function renderList(){
   $('#bPrintSel').onclick=()=>{if(!sel.size){toast('인쇄할 결의서를 체크하세요');return}printDocs(docs.filter(d=>sel.has(d.id)).sort(byNo))};
   $('#bBank').onclick=()=>{if(!S.saved){toast('먼저 ① 시설 정보를 입력하고 저장하세요');return}$('#fileBank').click()};
   $('#bBook').onclick=()=>openBooks();
+  $('#bBooklet').onclick=()=>{if(!docs.length){toast('출력할 결의서가 없습니다');return}openBooklet()};
   const sa=$('#bSplitAll');if(sa)sa.onclick=async()=>{if(!confirm('목이 서로 다른 항목이 섞인 결의서를 목별로 나눕니다. (증빙 사진은 원래 결의서에 남습니다) 진행할까요?'))return;let n=0;for(const d of docs.filter(isMixed).slice())n+=await splitByMok(d);toast('결의서 '+n+'건을 새로 만들었습니다',4000);renderList()};
   const upd=()=>{PP.y=$('#pY').value;PP.m=$('#pM').value;PP.k='';const L=perDocs();$('#nAll').textContent=L.length;$('#nOut').textContent=L.filter(d=>d.kind!=='in').length;$('#nIn').textContent=L.filter(d=>d.kind==='in').length};
   ['pY','pM'].forEach(i=>$('#'+i).onchange=upd);upd();
@@ -3431,6 +3442,7 @@ function renderEdit(){
    +'<div class="muted" style="margin-top:6px">컴퓨터에서는 사진·PDF를 이 칸에 끌어놓거나 Ctrl+V로 붙여넣을 수도 있습니다. 자동 인식 결과는 틀릴 수 있으니 꼭 확인하세요.</div>'
    +'<div class="radio"><label><input type="radio" name="evm" value="inline" '+(d.evMode==='inline'?'checked':'')+'> 비고칸 안에 넣기 <span class="muted">(최대 <select id="evMax" style="width:auto;padding:2px">'+[1,2,3,4,5,6].map(n=>'<option '+(n==d.evMax?'selected':'')+'>'+n+'</option>').join('')+'</select>장, 넘치면 다음 장)</span></label>'
    +'<label><input type="radio" name="evm" value="next" '+(d.evMode==='next'?'checked':'')+'> 다음 장에 별도 배치 <span class="muted">(장당 <select id="nextPer" style="width:auto;padding:2px">'+[1,2,4,6].map(n=>'<option '+(n==d.nextPer?'selected':'')+'>'+n+'</option>').join('')+'</select>장)</span></label></div>'
+   +'<div style="margin-top:8px">증빙서류(종이)를 붙일 <b>빈 쪽</b> <select id="blankPg" style="width:auto;padding:2px">'+[0,1,2,3,4,5,6,7,8,9,10].map(n=>'<option value="'+n+'"'+(n===(+d.blankPg||0)?' selected':'')+'>'+n+'쪽</option>').join('')+'</select> <span class="muted">결의서 뒤에 번호가 적힌 빈 면이 추가됩니다 (여러 건은 목록의 📖 책자 출력에서 한 번에 설정)</span></div>'
    +'<div class="photos" id="photos"></div></div>'
 
   +'<div class="card"><h2>세입(출)과목 <small>적요로 자동 분류되며, 틀리면 아래에서 직접 선택합니다</small></h2><div id="gwa"></div></div>'
@@ -3478,6 +3490,7 @@ function renderEdit(){
   $('#remark').oninput=e=>{d.remark=e.target.value;touch();refreshPv()};
   document.querySelectorAll('input[name=evm]').forEach(r=>r.onchange=()=>{d.evMode=r.value;touch();refreshPv()});
   $('#evMax').onchange=e=>{d.evMax=+e.target.value;touch();refreshPv()};
+  $('#blankPg').onchange=e=>{d.blankPg=+e.target.value;touch();refreshPv()};
   $('#nextPer').onchange=e=>{d.nextPer=+e.target.value;touch();refreshPv()};
   $('#aAdd').onclick=()=>{d.approvals.push('');renderAppr();touch();refreshPv();const ins=document.querySelectorAll('#appr input');ins[ins.length-1].focus()};
   $('#aSave').onclick=()=>{S.approvals=d.approvals.filter(Boolean);saveS();toast('새 결의서의 기본 결재라인으로 저장했습니다')};
@@ -4271,6 +4284,67 @@ async function printDocs(list){
   setTimeout(()=>window.print(),80);
 }
 window.addEventListener('afterprint',()=>{$('#printRoot').innerHTML=''});
+
+
+/* ---------- 책자 출력 : 미리보기 + 증빙 빈 쪽 + 한 번에 인쇄 ---------- */
+let BL={y:'',m:'',k:'',inc:null,sel:'',all:false};
+function blDocs(){
+  return docs.filter(d=>String(d.year||(d.date||'').slice(0,4))===BL.y&&(!BL.m||+(d.date||'').slice(5,7)===+BL.m)&&(!BL.k||(BL.k==='in'?d.kind==='in':d.kind!=='in'))).sort(byNo);
+}
+const pgCount=h=>(h.match(/<section class="page"/g)||[]).length;
+function openBooklet(){
+  const ys=perYears();BL.y=BL.y||PP.y||ys[0];BL.m=PP.m||'';BL.k='';BL.inc=null;BL.sel='';BL.all=false;
+  renderBooklet();
+}
+async function renderBooklet(){
+  cur=null;const ys=perYears();if(ys.indexOf(BL.y)<0)ys.unshift(BL.y);
+  const L=blDocs();if(!BL.inc)BL.inc=new Set(L.map(d=>d.id));
+  const inc=L.filter(d=>BL.inc.has(d.id));
+  if(!BL.sel||!L.some(d=>d.id===BL.sel))BL.sel=(inc[0]||L[0]||{}).id||'';
+  const nOpt=v=>[0,1,2,3,4,5,6,7,8,9,10].map(n=>'<option value="'+n+'"'+(n===v?' selected':'')+'>'+n+'쪽</option>').join('');
+  $('#app').innerHTML='<div class="topbar"><button id="blBack">← 목록</button><h1>📖 책자 출력</h1><button class="pri" id="blPrint">🖨 한 책자로 인쇄 (<span id="blN">0</span>쪽)</button></div>'
+   +'<div class="wrap"><div class="grid bl2" style="grid-template-columns:minmax(320px,430px) 1fr;gap:12px;align-items:start">'
+   +'<div><div class="card"><div class="grid g3"><div><label>연도</label><select id="blY">'+ys.map(y=>'<option'+(y===BL.y?' selected':'')+'>'+y+'</option>').join('')+'</select></div>'
+   +'<div><label>월</label><select id="blM"><option value="">연간</option>'+[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>'<option value="'+m+'"'+(+BL.m===m?' selected':'')+'>'+m+'월</option>').join('')+'</select></div>'
+   +'<div><label>종류</label><select id="blK"><option value="">전체</option><option value="out"'+(BL.k==='out'?' selected':'')+'>지출결의서</option><option value="in"'+(BL.k==='in'?' selected':'')+'>세입결의서</option></select></div></div>'
+   +'<div class="row" style="margin-top:10px;align-items:flex-end"><div style="width:110px"><label>모든 결의서에</label><select id="blAllN">'+nOpt(1)+'</select></div><button id="blApply">증빙 빈 쪽 일괄 적용</button><button id="blOne">모두 1쪽씩</button><button id="blZero">모두 0쪽</button></div>'
+   +'<div class="muted" style="margin-top:6px">결의서 뒤에 "증빙서류" 번호가 적힌 빈 면을 넣어, 종이 증빙을 붙이거나 끼워 넣을 수 있습니다. 지금 체크된 결의서에만 적용됩니다.</div></div>'
+   +'<div class="card" style="padding:0"><table class="dl"><tr><th style="width:30px"><input type="checkbox" id="blAll" style="width:auto"></th><th>번호</th><th>사업 / 적요</th><th style="text-align:right">금액</th><th style="width:78px">증빙 쪽</th></tr>'
+   +(L.length?L.map(d=>{const f1=(d.items||[]).find(filled);return '<tr class="item'+(d.id===BL.sel?' hl':'')+'" data-id="'+d.id+'"><td data-stop><input type="checkbox" class="bk1" style="width:auto"'+(BL.inc.has(d.id)?' checked':'')+'></td><td>'+(d.kind==='in'?'<span class="tag in">수입</span>':'')+esc(d.no)+'</td><td>'+esc(d.biz)+(f1?' <span class="muted">'+esc(f1.memo||f1.acct)+'</span>':'')+'</td><td class="r">'+fmt(sumOf(d))+'</td><td data-stop><select class="bn" style="width:auto;padding:2px">'+nOpt(+d.blankPg||0)+'</select></td></tr>'}).join(''):'<tr><td colspan="5" class="muted" style="padding:14px">해당 기간의 결의서가 없습니다.</td></tr>')
+   +'</table></div></div>'
+   +'<div><div class="row" style="margin-bottom:6px"><b>미리보기</b><label style="display:inline-flex;gap:4px;align-items:center;margin-left:10px"><input type="checkbox" id="blWhole" style="width:auto"'+(BL.all?' checked':'')+'> 체크한 전체 책자 보기</label><span class="muted" id="blInfo"></span></div><div class="pvbox" id="blPv" style="position:sticky"></div></div>'
+   +'</div></div>';
+  const upd=()=>{
+    let n=0;inc.forEach(d=>{n+=pgCount(pagesHTML(d))});
+    $('#blN').textContent=n;$('#blAll').checked=L.length&&L.every(d=>BL.inc.has(d.id));
+  };
+  const drawBl=async()=>{
+    const box=$('#blPv');if(!box)return;
+    const list=BL.all?L.filter(d=>BL.inc.has(d.id)):L.filter(d=>d.id===BL.sel);
+    if(!list.length){box.innerHTML='<div class="empty" style="color:#fff">미리볼 결의서가 없습니다</div>';return}
+    for(const d of list)await Store.hydrate(d);
+    box.innerHTML=list.map(d=>pagesHTML(d)).join('');
+    const W=793.7,H=1122.5,s=Math.min(1,Math.max(200,box.clientWidth-24)/W);
+    [...box.querySelectorAll('.page')].forEach(pg=>{const w=document.createElement('div');w.className='pvwrap';w.style.width=W*s+'px';w.style.height=H*s+'px';pg.parentNode.insertBefore(w,pg);w.appendChild(pg);pg.style.transform='scale('+s+')'});
+    $('#blInfo').textContent=BL.all?'· 전체 '+pgCount(list.map(d=>pagesHTML(d)).join(''))+'쪽':'';
+  };
+  upd();drawBl();
+  $('#blBack').onclick=()=>renderList();
+  $('#blY').onchange=e=>{BL.y=e.target.value;BL.inc=null;BL.sel='';renderBooklet()};
+  $('#blM').onchange=e=>{BL.m=e.target.value;BL.inc=null;BL.sel='';renderBooklet()};
+  $('#blK').onchange=e=>{BL.k=e.target.value;BL.inc=null;BL.sel='';renderBooklet()};
+  $('#blWhole').onchange=e=>{BL.all=e.target.checked;drawBl()};
+  const setAll=async n=>{for(const d of inc){d.blankPg=n;d.updated=Date.now();await Store.save(d)}renderBooklet()};
+  $('#blApply').onclick=()=>setAll(+$('#blAllN').value);$('#blOne').onclick=()=>setAll(1);$('#blZero').onclick=()=>setAll(0);
+  $('#blAll').onchange=e=>{L.forEach(d=>e.target.checked?BL.inc.add(d.id):BL.inc.delete(d.id));renderBooklet()};
+  document.querySelectorAll('#app tr.item').forEach(tr=>{
+    const id=tr.dataset.id,d=L.find(x=>x.id===id);
+    tr.onclick=e=>{if(e.target.closest('[data-stop]'))return;BL.sel=id;BL.all=false;renderBooklet()};
+    tr.querySelector('.bk1').onchange=e=>{e.target.checked?BL.inc.add(id):BL.inc.delete(id);renderBooklet()};
+    tr.querySelector('.bn').onchange=async e=>{d.blankPg=+e.target.value;d.updated=Date.now();await Store.save(d);BL.sel=id;renderBooklet()};
+  });
+  $('#blPrint').onclick=()=>{if(!inc.length){toast('인쇄할 결의서를 체크하세요');return}printDocs(inc)};
+}
 
 /* ---------- 시작 ---------- */
 function applySnapshot(arr){
