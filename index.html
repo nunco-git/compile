@@ -3310,10 +3310,9 @@ function renderList(){
   +'<div class="fac" style="max-width:260px"><label>검색</label><input id="q" value="'+esc(filter)+'" placeholder="번호·사업·적요·거래처"></div>'
   +'<button class="pri" id="bNew">＋ 새 결의서</button><button id="bBank">🏦 통장 거래내역 가져오기</button><button id="bBook">📒 장부·명세서</button>'
   +'<button id="bPrintSel">🖨 선택 인쇄 (<span id="selN">'+sel.size+'</span>)</button>'
-  +'<div class="fac" style="min-width:300px"><label>기간별 결의서 출력</label><div style="display:flex;gap:4px"><select id="pY" style="width:auto">'+perYears().map(y=>'<option'+(y===PP.y?' selected':'')+'>'+y+'</option>').join('')+'</select>'
-  +'<select id="pM" style="width:auto"><option value="">연간</option>'+[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>'<option value="'+m+'"'+(+PP.m===m?' selected':'')+'>'+m+'월</option>').join('')+'</select>'
-  +'<select id="pK" style="width:auto"><option value="">전체</option><option value="out"'+(PP.k==='out'?' selected':'')+'>지출결의서</option><option value="in"'+(PP.k==='in'?' selected':'')+'>세입결의서</option></select>'
-  +'<button id="bPer">🖨 출력 (<span id="perN">0</span>건)</button></div></div>'
+  +'<div style="width:96px"><label>출력 연도</label><select id="pY">'+perYears().map(y=>'<option'+(y===PP.y?' selected':'')+'>'+y+'</option>').join('')+'</select></div>'
+  +'<div style="width:96px"><label>출력 월</label><select id="pM"><option value="">연간</option>'+[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>'<option value="'+m+'"'+(+PP.m===m?' selected':'')+'>'+m+'월</option>').join('')+'</select></div>'
+  +'<button id="bPerOut">🖨 지출결의서 출력 (<span id="nOut">0</span>)</button><button id="bPerIn">🖨 세입결의서 출력 (<span id="nIn">0</span>)</button><button id="bPerAll">🖨 전체 출력 (<span id="nAll">0</span>)</button>'
   +'<button id="bExp">백업 저장</button><button id="bImp">백업 불러오기</button></div>'
   +(list.length?'<table class="dl"><tr><th style="width:30px"><input type="checkbox" id="all" style="width:auto"></th><th>번호</th><th>사업 / 적요</th><th style="text-align:right">금액</th><th>증빙</th><th></th></tr>'
     +list.map(d=>{const f1=(d.items||[]).find(filled);return '<tr class="item" data-id="'+d.id+'"><td data-stop><input type="checkbox" class="ck" style="width:auto" '+(sel.has(d.id)?'checked':'')+'></td>'
@@ -3329,9 +3328,10 @@ function renderList(){
   $('#bPrintSel').onclick=()=>{if(!sel.size){toast('인쇄할 결의서를 체크하세요');return}printDocs(docs.filter(d=>sel.has(d.id)).sort(byNo))};
   $('#bBank').onclick=()=>{if(!S.saved){toast('먼저 ① 시설 정보를 입력하고 저장하세요');return}$('#fileBank').click()};
   $('#bBook').onclick=()=>openBooks();
-  const upd=()=>{PP.y=$('#pY').value;PP.m=$('#pM').value;PP.k=$('#pK').value;$('#perN').textContent=perDocs().length};
-  ['pY','pM','pK'].forEach(i=>$('#'+i).onchange=upd);upd();
-  $('#bPer').onclick=()=>{const L=perDocs();if(!L.length){toast('해당 기간의 결의서가 없습니다');return}printDocs(L)};
+  const upd=()=>{PP.y=$('#pY').value;PP.m=$('#pM').value;PP.k='';const L=perDocs();$('#nAll').textContent=L.length;$('#nOut').textContent=L.filter(d=>d.kind!=='in').length;$('#nIn').textContent=L.filter(d=>d.kind==='in').length};
+  ['pY','pM'].forEach(i=>$('#'+i).onchange=upd);upd();
+  const perPrint=k=>{PP.k=k;const L=perDocs().filter(d=>!k||(k==='in'?d.kind==='in':d.kind!=='in'));PP.k='';if(!L.length){toast('해당 기간의 '+(k==='in'?'세입':k==='out'?'지출':'')+'결의서가 없습니다');return}printDocs(L)};
+  $('#bPerOut').onclick=()=>perPrint('out');$('#bPerIn').onclick=()=>perPrint('in');$('#bPerAll').onclick=()=>perPrint('');
   $('#bExp').onclick=exportAll;$('#bImp').onclick=()=>$('#fileImp').click();
   const all=$('#all');if(all){all.checked=list.length&&list.every(d=>sel.has(d.id));all.onchange=()=>{list.forEach(d=>all.checked?sel.add(d.id):sel.delete(d.id));renderList()}}
   document.querySelectorAll('.dl tr.item').forEach(tr=>{
