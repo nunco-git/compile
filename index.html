@@ -198,7 +198,8 @@ tr.hl td{background:#fff3b0!important}
 .rb .rbl{font-size:12px;color:var(--sub);width:54px}
 .rb .rbo{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:18px;padding:4px 12px;cursor:pointer;background:#fff;font-size:13.5px;margin:0}
 .rb .rbo input{width:auto;margin:0}
-.rb1{flex-wrap:nowrap;gap:10px}.rb1 .rbg{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}.rb1 .rbl{width:auto;font-size:12px}.rb1 .rbo{padding:3px 7px;font-size:12px;gap:0}.rb1 .rbo input{display:none}
+.pg-in .ev.empty{display:flex;align-items:center;justify-content:center;color:#888;font-size:11pt;letter-spacing:1px}
+.rb1{flex-wrap:nowrap;gap:10px;justify-content:space-between;padding:0 8px}.rb1 .rbg{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}.rb1 .rbl{width:auto;font-size:12px}.rb1 .rbo{padding:3px 7px;font-size:12px;gap:0}.rb1 .rbo input{display:none}
 .rb .rbo:has(input:checked){background:#e7f0ff;border-color:#2563eb;color:#1d4ed8;font-weight:bold}
 @media(max-width:1150px){.rb1{flex-wrap:wrap}}
 @media(max-width:900px){.bl2{grid-template-columns:1fr!important}}
@@ -3250,7 +3251,7 @@ const byNo=(a,b)=>String(a.no).localeCompare(String(b.no),'ko',{numeric:true});
 
 /* ---------- 지출결의서 페이지 HTML ---------- */
 function gridStyle(n,lay){if(n===2&&lay==='h')return 'grid-template-columns:repeat(2,1fr);grid-template-rows:1fr';const c=n<=3?1:2,r=n<=3?Math.max(1,n):Math.ceil(n/2);return 'grid-template-columns:repeat('+c+',1fr);grid-template-rows:repeat('+r+',1fr)'}
-function evPad(a,n,any){return a.map(p=>evCell(p,any)).join('')+'<div class="ev"></div>'.repeat(Math.max(0,n-a.length))}
+function evPad(a,n,any){return a.map(p=>evCell(p,any)).join('')+'<div class="ev empty"><span>원본서류 첨부</span></div>'.repeat(Math.max(0,n-a.length))}
 function evCell(p,any){return '<div class="ev">'+'<span class="rotbtns"><button data-rot="l" data-pid="'+esc(p.id||'')+'" title="왼쪽으로 회전">↺</button><button data-rot="r" data-pid="'+esc(p.id||'')+'" title="오른쪽으로 회전">↻</button></span>'+(any?'<div class="cap">'+esc(p.cap||'')+'&nbsp;</div>':'')+'<div class="iw"><img src="'+(p.data||'')+'" alt=""></div></div>'}
 function pagesHTML(d){
   const rows=(d.items||[]).filter(filled);
@@ -4414,7 +4415,7 @@ window.addEventListener('afterprint',()=>{$('#printRoot').innerHTML=''});
 
 
 /* ---------- 책자 출력 : 미리보기 + 증빙 빈 쪽 + 한 번에 인쇄 ---------- */
-let BL={y:'',m:'',kOut:true,kIn:true,inc:null,sel:'',all:false,mode:'next',per:'4'};
+let BL={y:'',m:'',kOut:true,kIn:true,inc:null,sel:'',all:false,inPer:'',pgPer:'4'};
 function blDocs(){
   return docs.filter(d=>String(d.year||(d.date||'').slice(0,4))===BL.y&&(!BL.m||+(d.date||'').slice(5,7)===+BL.m)&&((d.kind==='in')?BL.kIn:BL.kOut)).sort(byNo);
 }
@@ -4435,7 +4436,7 @@ async function renderBooklet(){
    +'<button class="pri" id="blPrint">🖨 한 책자로 인쇄 (<span id="blN">0</span>쪽)</button></div>'
    +'<div class="wrap"><div class="grid bl2" style="grid-template-columns:clamp(320px,42vw,540px) 1fr;gap:12px;align-items:start">'
    +'<div><div style="position:sticky;top:57px;z-index:6;background:var(--bg);padding:5px 0 10px"><div class="card" style="margin:0"><h2>증빙 파일 추가 <small>'+(BL.sel?esc((L.find(d=>d.id===BL.sel)||{}).no||'')+' · 현재 '+(((L.find(d=>d.id===BL.sel)||{}).photos||[]).length)+'장':'')+'</small></h2>'
-   +'<div class="rb rb1">'+[['inline','비고칸'],['next','증빙서류칸']].map(g=>'<span class="rbg"><span class="rbl">'+g[1]+'</span>'+[['1','1개'],['2h','2좌우'],['2v','2상하'],['4','4개']].map(x=>'<label class="rbo"><input type="radio" name="blSel" value="'+g[0]+'|'+x[0]+'"'+(BL.mode===g[0]&&BL.per===x[0]?' checked':'')+'>'+x[1]+'</label>').join('')+'</span>').join('')+'</div>'
+   +'<div class="rb rb1">'+[['blIn','비고칸',BL.inPer],['blPg','증빙서류칸',BL.pgPer]].map(g=>'<span class="rbg"><span class="rbl">'+g[1]+'</span>'+[['1','1개'],['2h','2좌우'],['2v','2상하'],['4','4개']].map(x=>'<label class="rbo"><input type="checkbox" name="'+g[0]+'" value="'+x[0]+'"'+(g[2]===x[0]?' checked':'')+'>'+x[1]+'</label>').join('')+'</span>').join('')+'</div>'
    +'<div class="rb"><span class="rbl">쪽 추가</span><button class="sm" id="blCopy" title="증빙서류칸 설정(칸 수·배치)을 그대로 빈 쪽 1장 더 추가">증빙서류칸 복사</button><button class="sm" id="blBlank">빈페이지 추가</button>'+((()=>{const x=L.find(d=>d.id===BL.sel)||{};return (x.evPgMin>0||x.blankAdd>0)?'<button class="sm dng" id="blPgReset" title="추가한 쪽을 모두 취소">추가 쪽 취소</button><span class="muted" style="font-size:12px">'+(x.blankAdd>0?'빈페이지 '+x.blankAdd+'장':'')+'</span>':''})())+'</div>'
    +'<div id="blDrop" style="margin-top:8px;border:2px dashed #8aa;border-radius:10px;padding:12px;text-align:center;background:#f8fbff">PDF·이미지를 여기에 <b>끌어다 놓으세요</b> (오른쪽 미리보기에 놓아도 됩니다)<br><button class="sm" id="blPick" style="margin-top:6px">파일 선택</button>'+(((L.find(d=>d.id===BL.sel)||{}).photos||[]).length?' <button class="sm dng" id="blClear" style="margin-top:6px">증빙 사진 모두 삭제</button>':'')+'<input type="file" id="blFile" accept="image/*,application/pdf" multiple style="display:none"></div>'
    +'<div class="muted" style="margin-top:4px;font-size:12px">선택한 칸 수대로 나누어 넣고, 비고칸이 차면 증빙서류 쪽으로 이어집니다.</div></div></div>'
@@ -4484,7 +4485,7 @@ async function renderBooklet(){
   $('#blPrint').onclick=()=>{if(!inc.length){toast('인쇄할 결의서를 체크하세요');return}printDocs(inc)};
   window.scrollTo(0,sy);
   /* 증빙 파일 추가 */
-  document.querySelectorAll('input[name=blSel]').forEach(r=>r.onchange=()=>{const v=r.value.split('|');BL.mode=v[0];BL.per=v[1]});
+  ['blIn','blPg'].forEach(nm=>document.querySelectorAll('input[name='+nm+']').forEach(r=>r.onchange=()=>{document.querySelectorAll('input[name='+nm+']').forEach(o=>{if(o!==r)o.checked=false});BL[nm==='blIn'?'inPer':'pgPer']=r.checked?r.value:''}));
   const getSel=()=>docs.find(d=>d.id===BL.sel);
   const dz=$('#blDrop'),fi=$('#blFile');
   const put=async files=>{
@@ -4493,10 +4494,12 @@ async function renderBooklet(){
     files=[...files].filter(f=>f.type.startsWith('image/')||f.type==='application/pdf'||/\.pdf$/i.test(f.name||''));
     if(!files.length){toast('이미지 또는 PDF 파일을 놓아 주세요');return}
     await Store.hydrate(selDoc);
-    const mode=BL.mode,per=parseInt(BL.per,10),lay=BL.per==='2h'?'h':'v';
+    const ip=BL.inPer,pp=BL.pgPer;
+    if(!ip&&!pp){toast('비고칸 또는 증빙서류칸의 칸 수를 선택하세요');return}
+    const mode=ip?'inline':'next',per=parseInt(ip||pp,10);
     if(selDoc.inN==null)selDoc.inN=selDoc.evMode==='inline'?Math.min(selDoc.photos.length,selDoc.evMax||4):0;
-    if(mode==='next'){selDoc.nextPer=per;selDoc.evLay=lay;if(selDoc.evMode!=='inline')selDoc.evMode='next'}
-    else{selDoc.evMode='inline';selDoc.evMax=per;selDoc.inLay=lay;if(!selDoc.nextPer)selDoc.nextPer=4}
+    if(pp){selDoc.nextPer=parseInt(pp,10);selDoc.evLay=pp==='2h'?'h':'v'}else if(!selDoc.nextPer)selDoc.nextPer=4;
+    if(ip){selDoc.evMode='inline';selDoc.evMax=per;selDoc.inLay=ip==='2h'?'h':'v'}else if(selDoc.evMode!=='inline')selDoc.evMode='next';
     const n0=selDoc.photos.length;
     await addFiles(files,selDoc);
     if(selDoc.photos.length>n0){
@@ -4516,7 +4519,8 @@ async function renderBooklet(){
     el.ondragleave=()=>{el.style.outline=''};
     el.ondrop=e=>{e.preventDefault();el.style.outline='';put(e.dataTransfer.files)}});
   const pgBtn=(id,fn)=>{const b=$('#'+id);if(b)b.onclick=async()=>{const d=getSel();if(!d){toast('왼쪽에서 결의서를 먼저 선택하세요');return}fn(d);d.updated=Date.now();await Store.save(d);renderBooklet()}};
-  pgBtn('blCopy',d=>{const per=d.nextPer||(BL.mode==='next'?parseInt(BL.per,10):4);if(!d.nextPer){d.nextPer=per;d.evLay=BL.per==='2h'?'h':'v'}
+  pgBtn('blCopy',d=>{if(BL.pgPer){d.nextPer=parseInt(BL.pgPer,10);d.evLay=BL.pgPer==='2h'?'h':'v'}else if(!d.nextPer){d.nextPer=4;d.evLay='v'}
+    const per=d.nextPer;
     const inN=d.inN!=null?Math.min(d.photos.length,+d.inN||0,d.evMax||4):(d.evMode==='inline'?Math.min(d.photos.length,d.evMax||4):0);
     const cur=Math.max(Math.ceil((d.photos.length-inN)/per),+d.evPgMin||0);d.evPgMin=Math.min(20,cur+1)});
   pgBtn('blBlank',d=>{d.blankAdd=Math.min(10,(+d.blankAdd||0)+1)});
