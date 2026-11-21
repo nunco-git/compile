@@ -166,6 +166,22 @@ label{display:block;font-size:12px;color:var(--sub);margin:0 0 3px}
 .facline{margin-top:10px;font-size:12.5px;color:var(--sub);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:9px;background:#e8f0fe;color:#1a4fa0;margin-right:4px}.tag.in{background:#e6f4ea;color:#17692d}
 .bk table{width:100%;border-collapse:collapse;font-size:12.5px;margin:8px 0}.bk th,.bk td{border-bottom:1px solid #e3e7ec;padding:4px 6px;text-align:left}.bk td.r{text-align:right}.bk .scroll{max-height:46vh;overflow:auto}
+
+.bkp .bk-ref{font-size:8.5pt;margin-bottom:2mm}
+.bkp .bk-title{text-align:center;font-size:17pt;letter-spacing:1.5mm;text-decoration:underline;margin:1mm 0 5mm}
+.bkp .bk-sub{text-align:center;font-size:10pt;margin:-2mm 0 4mm}
+.bkp .bk-acct{font-size:10pt;margin-bottom:2mm}
+.bkp table.bk th,.bkp table.bk td{height:6.6mm;font-size:8.6pt;white-space:normal;word-break:break-all;line-height:1.2;padding:.4mm 1.2mm}
+.bkp table.bk th{height:8mm}
+.bkp .tot td{font-weight:bold}
+.bkp .empty{text-align:center;padding:30mm 0;font-size:10pt}
+a.lk{color:#1a56c4;text-decoration:underline;cursor:pointer}
+tr.hl td{background:#fff3b0!important}
+.bkp input.bud{width:100%;border:1px dashed #8aa;padding:1px 3px;font-size:8.6pt;text-align:right;background:#fffef5;box-sizing:border-box}
+.bkp input.bud.tx{text-align:left}
+.bktabs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.bktabs button.on{background:#2b6cb0;color:#fff;border-color:#2b6cb0}
+@media print{a.lk{color:#000;text-decoration:none}tr.hl td{background:none!important}.bkp input.bud{border:0;background:none}}
 details.more{margin-top:10px}details.more summary{cursor:pointer;font-size:12.5px;color:var(--sub)}
 </style>
 </head>
@@ -2636,7 +2652,7 @@ const Store={
 
 /* ---------- 설정 ---------- */
 const S_DEF=()=>({facility:'',approvals:['담당자','시설장'],acctType:'시설',spender:'',writer:'',
-  year:String(new Date().getFullYear()),acctDiv:'시설회계',facKind:'facility',manager:'',head:'',fType:'facility',saved:false,autoOcr:true});
+  year:String(new Date().getFullYear()),acctDiv:'시설회계',facKind:'facility',manager:'',head:'',fType:'facility',saved:false,autoOcr:true,bud:{},open:{}});
 let S=S_DEF();
 function skey(){return 'jichul_set'+(Store.cloud&&Store.user?'_'+Store.user.uid:'')}
 function loadS(){S=S_DEF();try{Object.assign(S,JSON.parse(localStorage.getItem(skey())||'{}'))}catch(e){}}
@@ -3028,7 +3044,8 @@ function parseBank(rows){
   const sq=v=>String(v==null?'':v).replace(/\s+/g,'');
   let hi=-1,C=null;
   for(let r=0;r<Math.min(rows.length,50)&&hi<0;r++){
-    const h=(rows[r]||[]).map(sq),c={date:-1,out:-1,in:-1,amt:-1,type:-1,memo:[],vendor:-1};
+    const h=(rows[r]||[]).map(sq),c={date:-1,out:-1,in:-1,amt:-1,type:-1,memo:[],vendor:-1,bal:-1};
+    h.forEach((t,i)=>{if(c.bal<0&&/잔액/.test(t))c.bal=i});
     h.forEach((t,i)=>{
       if(!t)return;
       if(/잔액|계좌|번호|수수료|거래점|취급점|지점|시간$/.test(t)&&!/일시/.test(t))return;
@@ -3061,7 +3078,8 @@ function parseBank(rows){
     const add=(kind,amt)=>{
       if(!amt||amt<=0)return;
       const k0=date+'|'+kind+'|'+amt+'|'+memo;seen[k0]=(seen[k0]||0)+1;
-      txs.push({date,kind,amt,memo,vendor,key:k0+'#'+seen[k0]});
+      const bv=C.bal>=0&&row[C.bal]!==''?toAmt(row[C.bal]):null;
+      txs.push({date,kind,amt,memo,vendor,key:k0+'#'+seen[k0],bal:bv});
     };
     if(C.out>=0||C.in>=0){
       if(C.out>=0)add('out',Math.abs(toAmt(row[C.out])));
@@ -3073,7 +3091,10 @@ function parseBank(rows){
       else if(a<0)add('out',-a);else add('in',a);
     }
   }
-  return {txs,skipped,cols:C,headerRow:hi};
+  let opening=null;
+  const wb=txs.filter(t=>t.bal!==null);
+  if(wb.length){const f=wb[0],l=wb[wb.length-1],e=f.date<=l.date?f:l;opening={amt:e.bal-(e.kind==='in'?e.amt:-e.amt),date:e.date}}
+  return {txs,skipped,cols:C,headerRow:hi,opening};
 }
 /*BANK_END*/
 
@@ -3262,7 +3283,7 @@ function renderList(){
   +profHTML()
   +'<div class="listhead">'
   +'<div class="fac" style="max-width:260px"><label>검색</label><input id="q" value="'+esc(filter)+'" placeholder="번호·사업·적요·거래처"></div>'
-  +'<button class="pri" id="bNew">＋ 새 결의서</button><button id="bBank">🏦 통장 거래내역 가져오기</button>'
+  +'<button class="pri" id="bNew">＋ 새 결의서</button><button id="bBank">🏦 통장 거래내역 가져오기</button><button id="bBook">📒 장부·명세서</button>'
   +'<button id="bPrintSel">🖨 선택 인쇄 (<span id="selN">'+sel.size+'</span>)</button>'
   +'<button id="bExp">백업 저장</button><button id="bImp">백업 불러오기</button></div>'
   +(list.length?'<table class="dl"><tr><th style="width:30px"><input type="checkbox" id="all" style="width:auto"></th><th>번호</th><th>사업 / 적요</th><th style="text-align:right">금액</th><th>증빙</th><th></th></tr>'
@@ -3278,6 +3299,7 @@ function renderList(){
   $('#bNew').onclick=()=>{if(!S.saved){toast('먼저 ① 시설 정보를 입력하고 저장하세요');const e=$('#pfFac');if(e)e.focus();return}const d=newDoc();docs.push(d);Store.save(d);openDoc(d.id)};
   $('#bPrintSel').onclick=()=>{if(!sel.size){toast('인쇄할 결의서를 체크하세요');return}printDocs(docs.filter(d=>sel.has(d.id)).sort(byNo))};
   $('#bBank').onclick=()=>{if(!S.saved){toast('먼저 ① 시설 정보를 입력하고 저장하세요');return}$('#fileBank').click()};
+  $('#bBook').onclick=()=>openBooks();
   $('#bExp').onclick=exportAll;$('#bImp').onclick=()=>$('#fileImp').click();
   const all=$('#all');if(all){all.checked=list.length&&list.every(d=>sel.has(d.id));all.onchange=()=>{list.forEach(d=>all.checked?sel.add(d.id):sel.delete(d.id));renderList()}}
   document.querySelectorAll('.dl tr.item').forEach(tr=>{
@@ -3327,7 +3349,7 @@ function f(label,key,opts){opts=opts||{};
 function renderEdit(){
   const d=normDoc(cur);
   $('#app').innerHTML=
-   '<div class="topbar"><button id="bList">← 목록</button><h1 id="ttl">'+esc(d.no)+'</h1><span class="stat" id="stat">'+(Store.cloud?'☁ 자동 저장됨':'자동 저장됨')+'</span><button class="pri" id="bPrint">🖨 인쇄 / PDF</button></div>'
+   '<div class="topbar"><button id="bList">← 목록</button>'+(BK.from?'<button id="bBack">← 장부</button>':'')+'<h1 id="ttl">'+esc(d.no)+'</h1><span class="stat" id="stat">'+(Store.cloud?'☁ 자동 저장됨':'자동 저장됨')+'</span><button class="pri" id="bPrint">🖨 인쇄 / PDF</button></div>'
   +'<div class="wrap"><div class="tabs"><button id="tF" class="'+(tab==='form'?'on':'')+'">입력</button><button id="tP" class="'+(tab==='prev'?'on':'')+'">미리보기</button></div>'
   +'<div class="edit tab-'+tab+'"><div class="formcol">'
 
@@ -3355,6 +3377,8 @@ function renderEdit(){
    +f('발의','d.balui',{type:'date'})+f('결재','d.gyeoljae',{type:'date'})+f('출납','d.chulnap',{type:'date'})+f('등기','d.deunggi',{type:'date'})
    +'</div></div>'
 
+  +'<div class="card"><h2>연결된 장부·명세서 <small>누르면 해당 장부로 이동하고 이 결의서의 줄이 노랗게 표시됩니다</small></h2><div class="chips" id="bkChips"></div></div>'
+
   +'<div class="card"><h2>결재라인 <small>오른쪽 위 결재란에 표시됩니다</small></h2><div class="chips" id="appr"></div>'
    +'<div class="row" style="margin-top:8px"><button class="sm" id="aAdd">＋ 결재자 추가</button><button class="sm" id="aSave">이 결재라인을 기본값으로</button></div></div>'
 
@@ -3363,7 +3387,8 @@ function renderEdit(){
   +'<datalist id="dlA"></datalist><datalist id="dlF">'+FUNDS.map(a=>'<option value="'+a+'">').join('')+'</datalist>'
   +'</div><div class="pvbox" id="pv"></div></div></div>';
 
-  $('#bList').onclick=async()=>{await flushSave();renderList()};
+  $('#bList').onclick=async()=>{await flushSave();BK.from=false;renderList()};
+  const bb=$('#bBack');if(bb)bb.onclick=async()=>{await flushSave();renderBooks()};
   $('#bFac').onclick=async()=>{await flushSave();profOpen=true;renderList()};
   $('#autoOcr').onchange=e=>{S.autoOcr=e.target.checked;saveS()};
   $('#bPrint').onclick=()=>printDocs([cur]);
@@ -3555,6 +3580,314 @@ function schedClassify(){
 }
 
 
+
+/* ---------- 장부 · 명세서 : 결의서에서 자동으로 만들어집니다 ---------- */
+const BK_TABS=[['led','총계정원장'],['cash','현금출납부'],['rin','세입결산서'],['rout','세출결산서'],['b1','세입·세출명세서(예산)'],['sbiz','사업수입명세서'],['sgov','정부보조금명세서'],['spay','인건비명세서'],['sprj','사업비명세서'],['sexp','비용명세서']];
+let BK={tab:'cash',year:'',acct:'',month:'',hl:null,exp:'',from:false};
+const bsg=n=>n<0?'△'+fmt(-n):(n?fmt(n):'');
+const bfm=n=>n?fmt(n):'';
+const corpUse=()=>S.acctDiv==='법인회계';
+const useLbl=()=>corpUse()?'법인용':'시설용';
+function bkYears(){const a=new Set(docs.map(d=>String(d.year||'')).filter(Boolean));if(S.year)a.add(String(S.year));return [...a].sort().reverse()}
+function bkOpen(y){const o=(S.open||{})[y];return typeof o==='number'?o:0}
+function locateMok(d,name){
+  const list=accList(d);if(!list)return null;
+  for(const g of list)for(const h of g[2])for(const m of h[2]){
+    let ok=m[1]===name;
+    if(!ok&&m[1].includes('○○')){const rx=new RegExp('^'+m[1].split('○○').map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('.*')+'$');ok=rx.test(name)}
+    if(ok)return {g:g[0],gn:g[1],h:h[0],hn:h[1],m:m[0]};
+  }
+  return null;
+}
+function booksTx(year){
+  const out=[];
+  docs.filter(d=>String(d.year)===String(year)).forEach(d=>{
+    normDoc(d);
+    (d.items||[]).forEach((it,i)=>{
+      if(!filled(it))return;const amt=num(it.amt);if(!amt)return;
+      const name=it.acct||d.mok||'(과목 미정)';
+      const L=locateMok(d,name);
+      out.push({docId:d.id,no:d.no,date:d.date,kind:d.kind,ft:d.fType,acct:name,
+        gn:L?L.gn:(d.gwan||''),hn:L?L.hn:(d.hang||''),gc:L?L.g:(d.gwanC||''),hc:L?L.h:(d.hangC||''),mc:L?L.m:((name===d.mok&&d.mokC)||''),
+        memo:it.memo||'',vendor:it.vendor||'',fund:it.fund||'',amt,row:i});
+    });
+  });
+  const c=(a,b)=>String(a).localeCompare(String(b),'ko',{numeric:true});
+  return out.sort((a,b)=>c(a.date,b.date)||c(a.no,b.no)||a.row-b.row);
+}
+function fundCol(t){
+  if(t.kind==='in'){
+    if(/보조금|지원금/.test(t.acct+t.hn))return 0;
+    if(/후원|기부/.test(t.acct+t.hn+t.gn))return 2;
+    return 1;
+  }
+  if(/보조/.test(t.fund))return 0;if(/후원/.test(t.fund))return 2;return 1;
+}
+const chunk=(a,n)=>{const r=[];for(let i=0;i<a.length;i+=n)r.push(a.slice(i,i+n));return r.length?r:[[]]};
+function bkPage(ref,title,sub,inner){return '<section class="page"><div class="pg-in bkp"><div class="bk-ref">'+ref+'</div><div class="bk-title">'+title+'</div>'+(sub?'<div class="bk-sub">'+sub+'</div>':'')+inner+'</div></section>'}
+const lk=(t,scr)=>scr?'<a class="lk" data-doc="'+t.docId+'">'+esc(t.no)+'</a>':esc(t.no);
+const memoCell=(t,scr)=>esc(t.memo||'')+' ('+lk(t,scr)+')';
+const hlc=(t,scr)=>scr&&BK.hl&&t.docId===BK.hl?' class="hl"':'';
+const cg=a=>'<colgroup>'+a.map(w=>'<col style="width:'+w+'%">').join('')+'</colgroup>';
+const emptyPage=(ref,title,sub,y)=>bkPage(ref,title,sub,'<div class="empty">'+esc(y)+'년도에 해당하는 거래가 없습니다.</div>');
+
+function bkLedger(year,scr,all){
+  const T=booksTx(year),corp=corpUse(),ref=corp?'[별지 제25호서식]':'[별지 제25호의2서식]',title='총 계 정 원 장('+useLbl()+')';
+  const map={},keys=[];T.forEach(t=>{const k=t.kind+'|'+t.acct;if(!map[k]){map[k]=[];keys.push(k)}map[k].push(t)});
+  keys.sort((a,b)=>{const x=map[a][0],y=map[b][0];return (x.kind===y.kind?0:(x.kind==='in'?-1:1))||String(x.mc||'~').localeCompare(String(y.mc||'~'),'ko',{numeric:true})||x.acct.localeCompare(y.acct,'ko')});
+  const sel=(!all&&BK.acct&&map[BK.acct])?[BK.acct]:keys;
+  if(!sel.length)return all?'':emptyPage(ref,title,'',year);
+  let html='';
+  sel.forEach(k=>{
+    const rows=map[k],name=rows[0].acct;let bal=0,si=0,so=0;
+    const lines=rows.map(t=>{const inn=t.kind==='in';bal+=inn?t.amt:-t.amt;if(inn)si+=t.amt;else so+=t.amt;
+      return '<tr'+hlc(t,scr)+'><td class="l">'+esc(name)+'</td><td>'+slash(t.date)+'</td><td class="l">'+memoCell(t,scr)+'</td><td class="rt">'+(inn?fmt(t.amt):'')+'</td><td class="rt">'+(inn?'':fmt(t.amt))+'</td><td class="rt">'+bsg(bal)+'</td></tr>'});
+    const ch=chunk(lines,22);
+    ch.forEach((c,i)=>{html+=bkPage(ref,title,'','<div class="bk-acct">계정과목 : '+esc(name)+'　('+year+'년도)</div><table class="bk">'+cg([15,13,30,14,14,14])
+      +'<tr><th>계정명</th><th>연월일</th><th>적 요</th><th>수 입</th><th>지 출</th><th>차인잔액</th></tr>'+c.join('')
+      +(i===ch.length-1?'<tr class="tot"><td colspan="3">합 계</td><td class="rt">'+bfm(si)+'</td><td class="rt">'+bfm(so)+'</td><td class="rt">'+bsg(bal)+'</td></tr>':'')+'</table>')});
+  });
+  return html;
+}
+function bkCashMonth(year,M,scr,T){
+  const corp=corpUse(),ref=corp?'[별지 제24호서식]':'[별지 제24호의2서식]',title='현 금 출 납 부('+useLbl()+')';
+  const mo=t=>+t.date.slice(5,7);
+  const prior=T.filter(t=>mo(t)<M),cur=T.filter(t=>mo(t)===M);
+  const sum=(a,k)=>a.reduce((x,t)=>x+(t.kind===k?t.amt:0),0);
+  const open=bkOpen(year),pi=sum(prior,'in'),po=sum(prior,'out');let bal=open+pi-po;
+  const rows=['<tr><td></td><td></td><td class="l">(전월누계)'+(open?' <span style="font-size:7.5pt">기초잔액 '+fmt(open)+' 포함</span>':'')+'</td><td class="rt">'+bfm(pi)+'</td><td class="rt">'+bfm(po)+'</td><td class="rt">'+bsg(bal)+'</td></tr>'];
+  cur.forEach(t=>{const inn=t.kind==='in';bal+=inn?t.amt:-t.amt;
+    rows.push('<tr'+hlc(t,scr)+'><td>'+slash(t.date)+'</td><td class="l">'+esc(t.acct)+'</td><td class="l">'+memoCell(t,scr)+'</td><td class="rt">'+(inn?fmt(t.amt):'')+'</td><td class="rt">'+(inn?'':fmt(t.amt))+'</td><td class="rt">'+bsg(bal)+'</td></tr>')});
+  const mi=sum(cur,'in'),mout=sum(cur,'out');
+  const tail='<tr class="tot"><td></td><td></td><td>(월 계)</td><td class="rt">'+bfm(mi)+'</td><td class="rt">'+bfm(mout)+'</td><td></td></tr>'
+    +'<tr class="tot"><td></td><td></td><td>(누 계)</td><td class="rt">'+bfm(pi+mi)+'</td><td class="rt">'+bfm(po+mout)+'</td><td class="rt">'+bsg(bal)+'</td></tr>';
+  const ch=chunk(rows,20);let html='';
+  ch.forEach((c,i)=>{html+=bkPage(ref,title,year+' 년 &nbsp;'+M+' 월','<table class="bk">'+cg([13,17,30,14,14,12])
+    +'<tr><th>연 월 일</th><th>계정과목</th><th>적 요</th><th>수입금액</th><th>지출금액</th><th>차인잔액</th></tr>'+c.join('')+(i===ch.length-1?tail:'')+'</table>')});
+  return html;
+}
+function bkCash(year,scr,all){
+  const T=booksTx(year),months=[...new Set(T.map(t=>+t.date.slice(5,7)))].sort((a,b)=>a-b);
+  if(!months.length)return all?'':emptyPage(corpUse()?'[별지 제24호서식]':'[별지 제24호의2서식]','현 금 출 납 부('+useLbl()+')','',year);
+  const sel=(!all&&BK.month&&months.includes(+BK.month))?[+BK.month]:(all?months:[months[0]]);
+  return sel.map(M=>bkCashMonth(year,M,scr,T)).join('');
+}
+/* 예산 입력값(S.bud) : 연도 → "시설종류|구분|목코드" → {p:전년도,c:당해연도,n:산출근거} */
+function budGet(year,kind,mc){const B=(S.bud||{})[year]||{};return B[S.fType+'|'+kind+'|'+mc]||{}}
+function budCur(year,kind,mc){const v=budGet(year,kind,mc).c;return num(v)}
+function bkSettle(kind,year,scr,all){
+  const corp=corpUse();
+  const ref=kind==='in'?(corp?'[별지 제5호서식]':'[별지 제5호의3서식]'):(corp?'[별지 제5호의2서식]':'[별지 제5호의4서식]');
+  const title=(kind==='in'?'세 입':'세 출')+' 결 산 서('+useLbl()+')';
+  const T=booksTx(year).filter(t=>t.kind===kind);
+  const G={},go=[];
+  const node=(gc,gn,hc,hn,mc,mn)=>{
+    const gk=gc||gn;if(!G[gk]){G[gk]={gn,gc,H:{},ho:[]};go.push(gk)}
+    const g=G[gk],hk=hc||hn;if(!g.H[hk]){g.H[hk]={hn,hc,M:{},mo:[]};g.ho.push(hk)}
+    const h=g.H[hk],mk=mc||mn;if(!h.M[mk]){h.M[mk]={mn,mc,v:[0,0,0,0],b:0};h.mo.push(mk)}
+    return h.M[mk];
+  };
+  T.forEach(t=>{const m=node(t.gc,t.gn,t.hc,t.hn,t.mc,t.acct);const c=fundCol(t);m.v[c]+=t.amt;m.v[3]+=t.amt;if(t.mc&&!m.bset){m.b=budCur(year,kind,t.mc);m.bset=true}});
+  const list=ACC_TYPES.find(x=>x.id===S.fType);
+  if(list)list[kind].forEach(g=>g[2].forEach(h=>h[2].forEach(m=>{const b=budCur(year,kind,m[0]);if(b){const n=node(g[0],g[1],h[0],h[1],m[0],m[1]);if(!n.bset){n.b=b;n.bset=true}}})));
+  if(!go.length)return all?'':emptyPage(ref,title,'',year);
+  const sortC=(a,b)=>String(a).localeCompare(String(b),'ko',{numeric:true});
+  go.sort(sortC);
+  const tr=(l1,l2,l3,gu,vals,first)=>'<tr><td class="l">'+esc(l1)+'</td><td class="l">'+esc(l2)+'</td><td class="l">'+esc(l3)+'</td><td>'+gu+'</td>'+vals.map(v=>'<td class="rt">'+v+'</td>').join('')+'</tr>';
+  const tri=(l1,l2,l3,v,b)=>{
+    const dif=v[3]-b;
+    return tr(l1,l2,l3,'예산',['','','',bfm(b)])+tr('','','','결산',v.map(bfm))+tr('','','','증감',['','','',(b||v[3])?bsg(dif):'']);
+  };
+  const groups=[];const tot=[0,0,0,0];let totB=0;
+  go.forEach(gk=>{
+    const g=G[gk];const gv=[0,0,0,0];let gb=0,gfirst=true;
+    g.ho.sort(sortC);
+    g.ho.forEach(hk=>{
+      const h=g.H[hk];const hv=[0,0,0,0];let hb=0,hfirst=true;
+      h.mo.sort(sortC);
+      h.mo.forEach(mk=>{const m=h.M[mk];
+        groups.push(tri(gfirst?g.gn:'',hfirst?h.hn:'',m.mn,m.v,m.b));gfirst=false;hfirst=false;
+        for(let i=0;i<4;i++){hv[i]+=m.v[i]}hb+=m.b;
+      });
+      groups.push(tri('','','합계',hv,hb));
+      for(let i=0;i<4;i++)gv[i]+=hv[i];gb+=hb;
+    });
+    groups.push(tri('','합계','',gv,gb));
+    for(let i=0;i<4;i++)tot[i]+=gv[i];totB+=gb;
+  });
+  groups.push(tri('총 계','','',tot,totB));
+  const head='<tr><th rowspan="2" colspan="3">과 목</th><th rowspan="2">구분</th><th>정부<br>보조금</th><th>'+(corp?'법인':'시설')+'<br>부담금</th><th rowspan="2">후원금</th><th rowspan="2">계</th></tr><tr><th style="display:none"></th></tr>';
+  const head2='<tr><th>관</th><th>항</th><th>목</th><th>구분</th><th>정부보조금</th><th>'+(corp?'법인':'시설')+'부담금</th><th>후원금</th><th>계</th></tr>';
+  return chunk(groups,11).map(c=>bkPage(ref,title,year+'년도','<table class="bk">'+cg([8,9,12,7,16,16,16,16])+head2+c.join('')+'</table>')).join('');
+}
+function bkBudget(year,scr,all){
+  const ref='[별지 제1호서식]',title='세 입 ․ 세 출 명 세 서';
+  const list=ACC_TYPES.find(x=>x.id===S.fType);
+  if(!list)return bkPage(ref,title,'','<div class="empty">시설 정보에서 회계구분·시설종류를 정하면 과목별 예산을 입력할 수 있습니다.</div>');
+  const B=(S.bud||{})[year]||{},P=(S.bud||{})[String(+year-1)]||{};
+  let html='';
+  ['in','out'].forEach(kind=>{
+    const rows=[];
+    list[kind].forEach(g=>{
+      const gm=[];let gp=0,gc=0;
+      g[2].forEach(h=>{
+        const hm=[];let hp=0,hc=0;
+        h[2].forEach(m=>{
+          const key=S.fType+'|'+kind+'|'+m[0],v=B[key]||{};
+          const prev=v.p!==undefined&&v.p!==''?num(v.p):num((P[key]||{}).c),cur=num(v.c);
+          hp+=prev;hc+=cur;
+          if(!scr&&!(prev||cur||v.n))return;
+          hm.push('<tr><td></td><td></td><td class="l">'+esc(m[1])+'</td><td class="rt">'+(scr?'<input class="bud" data-k="'+key+'" data-f="p" value="'+(prev?fmt(prev):'')+'">':bfm(prev))+'</td><td class="rt">'+(scr?'<input class="bud" data-k="'+key+'" data-f="c" value="'+(cur?fmt(cur):'')+'">':bfm(cur))+'</td><td class="rt">'+((prev||cur)?bsg(cur-prev):'')+'</td><td class="l">'+(scr?'<input class="bud tx" data-k="'+key+'" data-f="n" value="'+esc(v.n||'')+'">':esc(v.n||''))+'</td></tr>');
+        });
+        if(!hm.length)return;
+        gp+=hp;gc+=hc;
+        gm.push('<tr class="tot"><td></td><td class="l">'+esc(h[1])+'</td><td></td><td class="rt">'+bfm(hp)+'</td><td class="rt">'+bfm(hc)+'</td><td class="rt">'+((hp||hc)?bsg(hc-hp):'')+'</td><td></td></tr>'+hm.join(''));
+      });
+      if(!gm.length)return;
+      rows.push('<tr class="tot"><td class="l">'+esc(g[1])+'</td><td></td><td></td><td class="rt">'+bfm(gp)+'</td><td class="rt">'+bfm(gc)+'</td><td class="rt">'+((gp||gc)?bsg(gc-gp):'')+'</td><td></td></tr>'+gm.join(''));
+    });
+    if(!rows.length)return;
+    // 한 줄씩 나누어 쪽 구분
+    const flat=rows.join('').split('</tr>').filter(Boolean).map(x=>x+'</tr>');
+    chunk(flat,24).forEach(c=>{html+=bkPage(ref,title,year+'년도 · '+(kind==='in'?'세입':'세출'),'<table class="bk">'+cg([14,14,18,13,13,10,18])+'<tr><th colspan="3">과 목</th><th>전년도<br>예산액</th><th>당해연도<br>예산액</th><th>증 감</th><th>산 출 근 거</th></tr><tr><th>관</th><th>항</th><th>목</th><th></th><th></th><th></th><th></th></tr>'+c.join('')+'</table>')});
+  });
+  return html||(all?'':emptyPage(ref,title,'',year));
+}
+/* 각종 명세서 */
+function bkTable(ref,title,sub,heads,widths,rows,scr,sumCol,all){
+  if(!rows.length)return all?'':emptyPage(ref,title,sub,BK.year);
+  const total=rows.reduce((a,r)=>a+r.amt,0);
+  const lines=rows.map(r=>r.tr);
+  const ch=chunk(lines,22);
+  return ch.map((c,i)=>bkPage(ref,title,sub,'<table class="bk">'+cg(widths)+'<tr>'+heads.map(h=>'<th>'+h+'</th>').join('')+'</tr>'+c.join('')
+    +(i===ch.length-1?'<tr class="tot"><td colspan="'+sumCol+'">합 계</td><td class="rt">'+fmt(total)+'</td><td colspan="'+(heads.length-sumCol-1)+'"></td></tr>':'')+'</table>')).join('');
+}
+const isHr=t=>/인건비/.test(t.hn+t.gn);
+const isPrj=t=>/사업비|보육활동비/.test(t.gn)&&!isHr(t);
+const isBizIn=t=>t.kind==='in'&&/사업수입/.test(t.gn+t.hn+t.acct);
+const isGov=t=>t.kind==='in'&&/보조금수입|국고보조금|보조금$|지원금/.test(t.hn+t.acct)&&!/사업수입/.test(t.gn);
+function bkBizIn(year,scr,all){
+  const rows=booksTx(year).filter(isBizIn).map(t=>({amt:t.amt,tr:'<tr'+hlc(t,scr)+'><td class="l">'+esc(t.acct)+'</td><td class="l">'+memoCell(t,scr)+'</td><td class="rt">'+fmt(t.amt)+'</td><td class="l"></td><td class="l">'+esc(t.vendor)+'</td></tr>'}));
+  return bkTable('[별지 제17호서식]','사 업 수 입 명 세 서',year+'년도',['사업종류','내 역','금 액','산 출 내 역','비 고'],[18,32,14,18,18],rows,scr,2,all);
+}
+function bkGov(year,scr,all){
+  const rows=booksTx(year).filter(isGov).map(t=>({amt:t.amt,tr:'<tr'+hlc(t,scr)+'><td>'+slash(t.date)+'</td><td class="l">'+esc(t.acct)+'</td><td class="l">'+memoCell(t,scr)+'</td><td class="rt">'+fmt(t.amt)+'</td><td class="l">'+esc(t.vendor)+'</td><td class="l"></td></tr>'}));
+  return bkTable('[별지 제18호서식]','정 부 보 조 금 명 세 서',year+'년도',['수령일','보조구분','보조내역','금 액','보조기관','산 출 기 초'],[13,17,26,14,15,15],rows,scr,3,all);
+}
+function bkPay(year,scr,all){
+  const T=booksTx(year).filter(t=>t.kind==='out'&&isHr(t)),g={},ord=[];
+  T.forEach(t=>{if(!g[t.acct]){g[t.acct]=[];ord.push(t.acct)}g[t.acct].push(t)});
+  const rows=ord.map(a=>{const x=g[a],amt=x.reduce((s,t)=>s+t.amt,0);
+    const hl=scr&&BK.hl&&x.some(t=>t.docId===BK.hl)?' class="hl"':'';
+    const nos=[...new Map(x.map(t=>[t.docId,t])).values()].map(t=>lk(t,scr)).join(', ');
+    return {amt,tr:'<tr'+hl+'><td class="l">'+esc(a)+'</td><td class="rt">'+fmt(amt)+'</td><td class="l">'+esc(x.length+'건 : '+x.map(t=>t.memo).filter(Boolean).slice(0,4).join(', ')+(x.length>4?' 외':''))+'</td><td class="l">'+nos+'</td></tr>'}});
+  return bkTable('[별지 제20호서식]','인 건 비 명 세 서',year+'년도',['구 분','금 액','산 출 내 역','비 고(결의서)'],[20,16,36,28],rows,scr,1,all);
+}
+function bkPrj(year,scr,all){
+  const rows=booksTx(year).filter(t=>t.kind==='out'&&isPrj(t)).map(t=>({amt:t.amt,tr:'<tr'+hlc(t,scr)+'><td class="l">'+esc(t.acct)+'</td><td class="l">'+memoCell(t,scr)+'</td><td class="rt">'+fmt(t.amt)+'</td><td class="l"></td><td class="l">'+esc(t.vendor)+'</td></tr>'}));
+  return bkTable('[별지 제21호서식]','사 업 비 명 세 서',year+'년도',['구 분','내 역','금 액','산 출 내 역','비 고'],[18,32,14,18,18],rows,scr,2,all);
+}
+function bkExpNames(year){const a=[];booksTx(year).filter(t=>t.kind==='out'&&!isHr(t)&&!isPrj(t)).forEach(t=>{const n=t.hn||t.acct;if(!a.includes(n))a.push(n)});return a}
+function bkExp(year,scr,all){
+  const names=bkExpNames(year);
+  if(!names.length)return all?'':emptyPage('[별지 제22호서식]','( )비 용 명 세 서','',year);
+  const sel=(!all&&BK.exp&&names.includes(BK.exp))?[BK.exp]:(all?names:[names[0]]);
+  return sel.map(n=>{
+    const rows=booksTx(year).filter(t=>t.kind==='out'&&!isHr(t)&&!isPrj(t)&&(t.hn||t.acct)===n).map(t=>({amt:t.amt,tr:'<tr'+hlc(t,scr)+'><td class="l">'+esc(t.acct)+'</td><td class="l">'+memoCell(t,scr)+'</td><td class="rt">'+fmt(t.amt)+'</td><td class="l"></td><td class="l">'+esc(t.vendor)+'</td></tr>'}));
+    return bkTable('[별지 제22호서식]','('+esc(n.replace(/비$/,''))+')비 용 명 세 서',year+'년도',['구 분','내 역','금 액','산 출 내 역','비 고'],[18,32,14,18,18],rows,scr,2,all);
+  }).join('');
+}
+function bkPages(tab,year,scr,all){
+  switch(tab){
+    case 'led':return bkLedger(year,scr,all);case 'cash':return bkCash(year,scr,all);
+    case 'rin':return bkSettle('in',year,scr,all);case 'rout':return bkSettle('out',year,scr,all);
+    case 'b1':return bkBudget(year,scr,all);case 'sbiz':return bkBizIn(year,scr,all);case 'sgov':return bkGov(year,scr,all);
+    case 'spay':return bkPay(year,scr,all);case 'sprj':return bkPrj(year,scr,all);case 'sexp':return bkExp(year,scr,all);
+  }
+  return '';
+}
+/* 결의서 → 연결된 장부 */
+function docBooks(d){
+  const out=[],T=booksTx(d.year).filter(t=>t.docId===d.id);
+  if(!T.length)return out;
+  out.push({tab:'cash',label:'현금출납부 '+(+d.date.slice(5,7))+'월',month:+d.date.slice(5,7)});
+  [...new Set(T.map(t=>t.kind+'|'+t.acct))].forEach(k=>out.push({tab:'led',label:'총계정원장 · '+k.split('|')[1],acct:k}));
+  out.push({tab:d.kind==='in'?'rin':'rout',label:d.kind==='in'?'세입결산서':'세출결산서'});
+  if(T.some(isBizIn))out.push({tab:'sbiz',label:'사업수입명세서'});
+  if(T.some(isGov))out.push({tab:'sgov',label:'정부보조금명세서'});
+  if(T.some(t=>t.kind==='out'&&isHr(t)))out.push({tab:'spay',label:'인건비명세서'});
+  if(T.some(t=>t.kind==='out'&&isPrj(t)))out.push({tab:'sprj',label:'사업비명세서'});
+  [...new Set(T.filter(t=>t.kind==='out'&&!isHr(t)&&!isPrj(t)).map(t=>t.hn||t.acct))].forEach(n=>out.push({tab:'sexp',label:'비용명세서 · '+n,exp:n}));
+  return out;
+}
+function refreshBkLinks(){
+  const box=$('#bkChips');if(!box||!cur)return;
+  const L=docBooks(cur);
+  box.innerHTML=L.length?L.map((x,i)=>'<button class="sm" data-bi="'+i+'">'+esc(x.label)+'</button>').join(''):'<span class="muted">금액이 있는 지출 내역을 입력하면 연결된 장부가 표시됩니다.</span>';
+  box.querySelectorAll('[data-bi]').forEach(b=>b.onclick=async()=>{
+    const x=L[+b.dataset.bi];await flushSave();
+    openBooks(x.tab,{year:cur.year,hl:cur.id,month:x.month,acct:x.acct,exp:x.exp});
+  });
+}
+function openBooks(tab,o){
+  o=o||{};cur=null;
+  BK.tab=tab||BK.tab;BK.year=String(o.year||BK.year||S.year||new Date().getFullYear());
+  BK.hl=o.hl||null;BK.acct=o.acct||'';BK.month=o.month||'';BK.exp=o.exp||'';BK.from=false;
+  renderBooks();
+}
+function scalePages(box){
+  const W=793.7,H=1122.5,avail=Math.max(200,box.clientWidth-24),sc=Math.min(1,avail/W);
+  [...box.querySelectorAll('.page')].forEach(pg=>{
+    const w=document.createElement('div');w.className='pvwrap';w.style.width=W*sc+'px';w.style.height=H*sc+'px';
+    pg.parentNode.insertBefore(w,pg);w.appendChild(pg);pg.style.transform='scale('+sc+')';
+  });
+}
+function renderBooks(){
+  cur=null;
+  const years=bkYears();if(!years.includes(BK.year))years.unshift(BK.year);
+  const T=booksTx(BK.year);
+  const months=[...new Set(T.map(t=>+t.date.slice(5,7)))].sort((a,b)=>a-b);
+  if(BK.tab==='cash'&&!months.includes(+BK.month))BK.month=months[0]||'';
+  let ctx='';
+  if(BK.tab==='led'){
+    const ks=[],seen={};T.forEach(t=>{const k=t.kind+'|'+t.acct;if(!seen[k]){seen[k]=1;ks.push(k)}});
+    ctx='<div><label>계정과목</label><select id="kAcct"><option value="">전체 (계정별로 쪽 나눔)</option>'+ks.map(k=>'<option value="'+esc(k)+'"'+(BK.acct===k?' selected':'')+'>'+(k.startsWith('in')?'[세입] ':'[세출] ')+esc(k.split('|')[1])+'</option>').join('')+'</select></div>';
+  }else if(BK.tab==='cash'){
+    ctx='<div><label>월</label><select id="kMonth">'+(months.length?months.map(m=>'<option value="'+m+'"'+(+BK.month===m?' selected':'')+'>'+m+'월</option>').join(''):'<option>-</option>')+'</select></div>'
+      +'<div><label>기초잔액 (전년도 이월금 · 올해 첫 거래 전 잔액)</label><input id="kOpen" inputmode="numeric" value="'+(bkOpen(BK.year)?fmt(bkOpen(BK.year)):'')+'" placeholder="0"></div>';
+  }else if(BK.tab==='sexp'){
+    const ns=bkExpNames(BK.year);
+    ctx='<div><label>항목</label><select id="kExp">'+ns.map(n=>'<option'+(BK.exp===n?' selected':'')+'>'+esc(n)+'</option>').join('')+'</select></div>';
+  }
+  $('#app').innerHTML='<div class="topbar"><button id="kList">← 목록</button><h1>📒 장부·명세서</h1><button class="pri" id="kPrint">🖨 이 화면 인쇄</button><button id="kPrintAll">전체 인쇄</button></div>'
+    +'<div class="wrap"><div class="card"><div class="grid g3"><div><label>회계연도</label><select id="kYear">'+years.map(y=>'<option'+(y===BK.year?' selected':'')+'>'+y+'</option>').join('')+'</select></div>'+ctx+'</div>'
+    +'<div class="bktabs">'+BK_TABS.map(t=>'<button class="sm'+(BK.tab===t[0]?' on':'')+'" data-t="'+t[0]+'">'+t[1]+'</button>').join('')+'</div>'
+    +'<div class="muted" style="margin-top:8px">결의서에서 자동으로 작성됩니다. 적요 끝의 <span style="color:#1a56c4;text-decoration:underline">(결의서번호)</span>를 누르면 해당 결의서가 열립니다. '
+    +(BK.tab==='b1'?'<b>노란 칸</b>에 예산액·산출근거를 입력하면 결산서의 예산·증감에 반영됩니다.':'')+'</div></div>'
+    +'<div class="pvbox" id="bkv" style="position:static;max-height:none;margin-top:12px"></div></div>';
+  const box=$('#bkv');box.innerHTML=bkPages(BK.tab,BK.year,true,false);scalePages(box);
+  const h=box.querySelector('tr.hl');if(h)h.scrollIntoView({block:'center'});
+  $('#kList').onclick=()=>renderList();
+  $('#kYear').onchange=e=>{BK.year=e.target.value;BK.acct='';BK.month='';renderBooks()};
+  document.querySelectorAll('.bktabs [data-t]').forEach(b=>b.onclick=()=>{BK.tab=b.dataset.t;BK.hl=null;renderBooks()});
+  const ka=$('#kAcct');if(ka)ka.onchange=()=>{BK.acct=ka.value;renderBooks()};
+  const km=$('#kMonth');if(km)km.onchange=()=>{BK.month=km.value;renderBooks()};
+  const ke=$('#kExp');if(ke)ke.onchange=()=>{BK.exp=ke.value;renderBooks()};
+  const ko=$('#kOpen');if(ko)ko.onchange=()=>{S.open=S.open||{};S.open[BK.year]=num(ko.value);saveS();Store.saveProfile();renderBooks()};
+  box.onclick=e=>{const a=e.target.closest('a.lk');if(a){BK.from=true;openDoc(a.dataset.doc)}};
+  box.querySelectorAll('input.bud').forEach(i=>i.onchange=()=>{
+    S.bud=S.bud||{};const y=BK.year;S.bud[y]=S.bud[y]||{};const o=S.bud[y][i.dataset.k]=S.bud[y][i.dataset.k]||{};
+    o[i.dataset.f]=i.dataset.f==='n'?i.value:(num(i.value)||'');
+    saveS();clearTimeout(window.__budT);window.__budT=setTimeout(()=>Store.saveProfile(),800);renderBooks();
+  });
+  $('#kPrint').onclick=()=>printBookHTML(bkPages(BK.tab,BK.year,false,false));
+  $('#kPrintAll').onclick=()=>printBookHTML(BK_TABS.map(t=>bkPages(t[0],BK.year,false,true)).join(''));
+}
+function printBookHTML(html){
+  if(!html){toast('인쇄할 내용이 없습니다');return}
+  $('#printRoot').innerHTML=html;setTimeout(()=>window.print(),80);
+}
+
 /* ---------- 통장 거래내역 엑셀 → 결의서 자동 생성 ---------- */
 async function readSheetRows(file){
   if(!window.XLSX)await OCR.script(OCR.XLSX);
@@ -3615,7 +3948,9 @@ async function importBank(file){
       d.updated=Date.now();
       await Store.save(d);if(isNew)made++;
     }
-    renderList();toast('결의서 '+made+'건을 만들었습니다 (거래 '+added+'건)',5000);
+    if(res.opening){const y=res.opening.date.slice(0,4);S.open=S.open||{};if(S.open[y]===undefined){S.open[y]=res.opening.amt;saveS();Store.saveProfile()}}
+    toast('결의서 '+made+'건을 만들고 장부에 반영했습니다 (거래 '+added+'건)',5000);
+    openBooks('cash',{year:keys[0].slice(0,4),month:+keys[0].slice(5,7)});
   };
 }
 
@@ -3796,6 +4131,7 @@ $('#fileGal').onchange=e=>{const fs=[...e.target.files];e.target.value='';addFil
 let pvT;
 function refreshPv(){clearTimeout(pvT);pvT=setTimeout(drawPv,120)}
 function drawPv(){
+  refreshBkLinks();
   const box=$('#pv');if(!box||!cur)return;
   const keep=box.scrollTop;
   box.innerHTML=pagesHTML(cur);
