@@ -198,7 +198,9 @@ tr.hl td{background:#fff3b0!important}
 .rb .rbl{font-size:12px;color:var(--sub);width:54px}
 .rb .rbo{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:18px;padding:4px 12px;cursor:pointer;background:#fff;font-size:13.5px;margin:0}
 .rb .rbo input{width:auto;margin:0}
+.rb1{flex-wrap:nowrap;gap:10px}.rb1 .rbg{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}.rb1 .rbl{width:auto;font-size:12px}.rb1 .rbo{padding:3px 7px;font-size:12px;gap:0}.rb1 .rbo input{display:none}
 .rb .rbo:has(input:checked){background:#e7f0ff;border-color:#2563eb;color:#1d4ed8;font-weight:bold}
+@media(max-width:1150px){.rb1{flex-wrap:wrap}}
 @media(max-width:900px){.bl2{grid-template-columns:1fr!important}}
 details.more{margin-top:10px}details.more summary{cursor:pointer;font-size:12.5px;color:var(--sub)}
 </style>
@@ -4431,9 +4433,9 @@ async function renderBooklet(){
    +'<select id="blM" style="width:auto" title="월"><option value="">연간</option>'+[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>'<option value="'+m+'"'+(+BL.m===m?' selected':'')+'>'+m+'월</option>').join('')+'</select>'
    +'<label class="rbo" style="margin:0"><input type="checkbox" id="blKo" style="width:auto"'+(BL.kOut?' checked':'')+'>지출결의서</label><label class="rbo" style="margin:0"><input type="checkbox" id="blKi" style="width:auto"'+(BL.kIn?' checked':'')+'>세입결의서</label>'
    +'<button class="pri" id="blPrint">🖨 한 책자로 인쇄 (<span id="blN">0</span>쪽)</button></div>'
-   +'<div class="wrap"><div class="grid bl2" style="grid-template-columns:minmax(320px,430px) 1fr;gap:12px;align-items:start">'
+   +'<div class="wrap"><div class="grid bl2" style="grid-template-columns:clamp(320px,42vw,540px) 1fr;gap:12px;align-items:start">'
    +'<div><div style="position:sticky;top:57px;z-index:6;background:var(--bg);padding:5px 0 10px"><div class="card" style="margin:0"><h2>증빙 파일 추가 <small>'+(BL.sel?esc((L.find(d=>d.id===BL.sel)||{}).no||'')+' · 현재 '+(((L.find(d=>d.id===BL.sel)||{}).photos||[]).length)+'장':'')+'</small></h2>'
-   +[['inline','비고칸'],['next','증빙서류칸']].map(g=>'<div class="rb"><span class="rbl">'+g[1]+'</span>'+[['1','1개'],['2h','2개 좌우'],['2v','2개 상하'],['4','4개']].map(x=>'<label class="rbo"><input type="radio" name="blSel" value="'+g[0]+'|'+x[0]+'"'+(BL.mode===g[0]&&BL.per===x[0]?' checked':'')+'>'+x[1]+'</label>').join('')+'</div>').join('')
+   +'<div class="rb rb1">'+[['inline','비고칸'],['next','증빙서류칸']].map(g=>'<span class="rbg"><span class="rbl">'+g[1]+'</span>'+[['1','1개'],['2h','2좌우'],['2v','2상하'],['4','4개']].map(x=>'<label class="rbo"><input type="radio" name="blSel" value="'+g[0]+'|'+x[0]+'"'+(BL.mode===g[0]&&BL.per===x[0]?' checked':'')+'>'+x[1]+'</label>').join('')+'</span>').join('')+'</div>'
    +'<div class="rb"><span class="rbl">쪽 추가</span><button class="sm" id="blCopy" title="증빙서류칸 설정(칸 수·배치)을 그대로 빈 쪽 1장 더 추가">증빙서류칸 복사</button><button class="sm" id="blBlank">빈페이지 추가</button>'+((()=>{const x=L.find(d=>d.id===BL.sel)||{};return (x.evPgMin>0||x.blankAdd>0)?'<button class="sm dng" id="blPgReset" title="추가한 쪽을 모두 취소">추가 쪽 취소</button><span class="muted" style="font-size:12px">'+(x.blankAdd>0?'빈페이지 '+x.blankAdd+'장':'')+'</span>':''})())+'</div>'
    +'<div id="blDrop" style="margin-top:8px;border:2px dashed #8aa;border-radius:10px;padding:12px;text-align:center;background:#f8fbff">PDF·이미지를 여기에 <b>끌어다 놓으세요</b> (오른쪽 미리보기에 놓아도 됩니다)<br><button class="sm" id="blPick" style="margin-top:6px">파일 선택</button>'+(((L.find(d=>d.id===BL.sel)||{}).photos||[]).length?' <button class="sm dng" id="blClear" style="margin-top:6px">증빙 사진 모두 삭제</button>':'')+'<input type="file" id="blFile" accept="image/*,application/pdf" multiple style="display:none"></div>'
    +'<div class="muted" style="margin-top:4px;font-size:12px">선택한 칸 수대로 나누어 넣고, 비고칸이 차면 증빙서류 쪽으로 이어집니다.</div></div></div>'
