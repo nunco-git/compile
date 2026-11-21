@@ -3254,7 +3254,7 @@ function pagesHTML(d){
   const rows=(d.items||[]).filter(filled);
   const total=sumOf(d);
   const photos=d.photos||[];
-  const inlineN=d.evMode==='inline'?Math.min(photos.length,d.evMax||4):0;
+  const inlineN=d.evMode==='inline'?(d.evOnly?photos.length:Math.min(photos.length,d.evMax||4)):0;
   const inl=photos.slice(0,inlineN),rest=photos.slice(inlineN);
   const anyCap=photos.some(p=>p.cap);
 
@@ -4432,7 +4432,7 @@ async function renderBooklet(){
    +'<button class="pri" id="blPrint">🖨 한 책자로 인쇄 (<span id="blN">0</span>쪽)</button></div>'
    +'<div class="wrap"><div class="grid bl2" style="grid-template-columns:minmax(320px,430px) 1fr;gap:12px;align-items:start">'
    +'<div><div style="position:sticky;top:57px;z-index:6;background:var(--bg);padding:5px 0 10px"><div class="card" style="margin:0"><h2>증빙 파일 추가 <small>'+(BL.sel?esc((L.find(d=>d.id===BL.sel)||{}).no||'')+' · 현재 '+(((L.find(d=>d.id===BL.sel)||{}).photos||[]).length)+'장':'')+'</small></h2>'
-   +'<div class="rb"><span class="rbl">넣을 위치</span>'+[['next','증빙서류칸'],['inline','비고칸']].map(x=>'<label class="rbo"><input type="radio" name="blMode" value="'+x[0]+'"'+(BL.mode===x[0]?' checked':'')+'>'+x[1]+'</label>').join('')+'</div>'
+   +'<div class="rb"><span class="rbl">넣을 위치</span>'+[['next','증빙서류칸'],['inline','비고칸'],['both','비고+증빙서류칸']].map(x=>'<label class="rbo"><input type="radio" name="blMode" value="'+x[0]+'"'+(BL.mode===x[0]?' checked':'')+'>'+x[1]+'</label>').join('')+'</div>'
    +'<div class="rb"><span class="rbl">한 쪽에</span>'+[['1','1장'],['2v','2장 상하'],['2h','2장 좌우'],['4','4장']].map(x=>'<label class="rbo"><input type="radio" name="blPer" value="'+x[0]+'"'+(BL.per===x[0]?' checked':'')+'>'+x[1]+'</label>').join('')+'</div>'
    +'<div id="blDrop" style="margin-top:8px;border:2px dashed #8aa;border-radius:10px;padding:12px;text-align:center;background:#f8fbff">PDF·이미지를 여기에 <b>끌어다 놓으세요</b> (오른쪽 미리보기에 놓아도 됩니다)<br><button class="sm" id="blPick" style="margin-top:6px">파일 선택</button>'+(((L.find(d=>d.id===BL.sel)||{}).photos||[]).length?' <button class="sm dng" id="blClear" style="margin-top:6px">증빙 사진 모두 삭제</button>':'')+'<input type="file" id="blFile" accept="image/*,application/pdf" multiple style="display:none"></div>'
    +'<div class="muted" style="margin-top:4px;font-size:12px">선택한 결의서에 최대 4개씩 칸을 나누어 넣고, 넘치면 다음 쪽으로 이어집니다.</div></div></div>'
@@ -4493,6 +4493,7 @@ async function renderBooklet(){
     await Store.hydrate(selDoc);
     const mode=BL.mode,per=parseInt(BL.per,10),lay=BL.per==='2h'?'h':'v';
     selDoc.evLay=lay;
+    selDoc.evOnly=mode==='inline';
     if(mode==='next'){selDoc.evMode='next';selDoc.nextPer=per}else{selDoc.evMode='inline';selDoc.evMax=per;selDoc.nextPer=per}
     const n0=selDoc.photos.length;
     await addFiles(files,selDoc);
