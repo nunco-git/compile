@@ -3099,6 +3099,7 @@ function parseBank(rows){
 /*BANK_END*/
 
 
+function S_fType(){return fTypeOfS(S)}
 function autoNo(date,exceptId){
   const p=(date||today()).replace(/-/g,'');
   const n=docs.filter(d=>d.id!==exceptId&&String(d.no).startsWith(p+'-')).length+1;
@@ -3135,16 +3136,37 @@ function pagesHTML(d){
    +'<tr><th>관</th><td>'+esc(d.gwan)+'</td><th>지 출 원</th><td>'+esc(d.spender)+'</td><th>결재</th><td>'+slash(d.d.gyeoljae)+'</td></tr>'
    +'<tr><th>항</th><td>'+esc(d.hang)+'</td><th>사　　업</th><td>'+esc(d.biz)+'</td><th>출납</th><td>'+slash(d.d.chulnap)+'</td></tr>'
    +'<tr><th>목</th><td>'+esc(d.mok)+'</td><th>작 성 자</th><td>'+esc(d.writer)+'</td><th>등기</th><td>'+slash(d.d.deunggi)+'</td></tr></table>';
-  const t2='<table class="t2"><colgroup><col style="width:7.9%"><col style="width:20.6%"><col style="width:25%"><col style="width:16.3%"><col style="width:17.6%"><col style="width:12.6%"></colgroup>'
-   +'<tr><th>No.</th><th>계정과목(세목)</th><th>적　　요</th><th>금액</th><th>거래처</th><th>자금원천</th></tr>'
-   +rows.map((r,i)=>'<tr><td>'+(i+1)+'</td><td class="l">'+esc(r.acct)+'</td><td class="l">'+esc(r.memo)+'</td><td class="rt">'+fmt(num(r.amt))+'</td><td>'+esc(r.vendor)+'</td><td>'+esc(r.fund)+'</td></tr>').join('')+'</table>';
+  const T2H='<colgroup><col style="width:7.9%"><col style="width:20.6%"><col style="width:25%"><col style="width:16.3%"><col style="width:17.6%"><col style="width:12.6%"></colgroup>'
+   +'<tr><th>No.</th><th>계정과목(세목)</th><th>적　　요</th><th>금액</th><th>거래처</th><th>자금원천</th></tr>';
+  const t2rows=(a,off)=>a.map((r,i)=>'<tr><td>'+(off+i+1)+'</td><td class="l">'+esc(r.acct)+'</td><td class="l">'+esc(r.memo)+'</td><td class="rt">'+fmt(num(r.amt))+'</td><td>'+esc(r.vendor)+'</td><td>'+esc(r.fund)+'</td></tr>').join('');
+  /* 적요 항목이 많으면 쪽을 나눕니다 : 첫 쪽 16줄, 중간 쪽 24줄, 마지막 쪽(금액·비고 포함) 12줄 이하 */
+  const parts=[];
+  if(rows.length<=12)parts.push(rows);
+  else{
+    let rem=rows.slice();parts.push(rem.splice(0,Math.min(16,rem.length-1)));
+    while(rem.length>12)parts.push(rem.splice(0,Math.min(24,rem.length-1)));
+    parts.push(rem);
+  }
+  const t2='<table class="t2">'+T2H+t2rows(parts[0],0)+'</table>';
   const sum='<div class="box sum"><div class="lb">금액</div><div class="vl">'+(total?'금'+fmt(total)+'원(금'+toKorean(total)+'원)':'')+'</div></div>';
   const rem='<div class="box remark"><div class="lb">비고</div><div class="vl">'
     +(d.remark?'<div class="rtext">'+esc(d.remark)+'</div>':'')
     +(inl.length?'<div class="evgrid" style="grid-template-columns:repeat('+colsFor(inl.length)+',1fr)">'+inl.map(p=>evCell(p,anyCap)).join('')+'</div>':'')
     +'</div></div>';
   const foot='<div class="foot"><span>시설명 : '+esc(d.facility)+'</span><span>'+(d.head?'시설장 : '+esc(d.head)+'　':'')+(d.manager?'담당자 : '+esc(d.manager):'')+'</span></div>';
-  let out='<section class="page"><div class="pg-in"><div class="head"><div class="title">'+(d.kind==='in'?'수입결의서':'지출결의서')+'</div>'+appr+'</div>'+t1+t2+sum+rem+foot+'</div></section>';
+  const ttl=d.kind==='in'?'수입결의서':'지출결의서';
+  let out='';
+  if(parts.length===1)out='<section class="page"><div class="pg-in"><div class="head"><div class="title">'+ttl+'</div>'+appr+'</div>'+t1+t2+sum+rem+foot+'</div></section>';
+  else{
+    out='<section class="page"><div class="pg-in"><div class="head"><div class="title">'+ttl+'</div>'+appr+'</div>'+t1+t2+'<div style="margin-top:3mm;font-size:9pt;text-align:right">(다음 쪽에 계속) 1/'+parts.length+'</div>'+foot+'</div></section>';
+    let off=parts[0].length;
+    for(let p=1;p<parts.length;p++){
+      const last=p===parts.length-1;
+      out+='<section class="page"><div class="pg-in"><div class="evhead"><span><b>'+ttl+'</b>　'+esc(d.biz)+'</span><span>결의서 번호 '+esc(d.no)+'　('+(p+1)+'/'+parts.length+')</span></div>'
+        +'<table class="t2" style="margin-top:2mm">'+T2H+t2rows(parts[p],off)+'</table>'+(last?sum+rem:'<div style="margin-top:3mm;font-size:9pt;text-align:right">(다음 쪽에 계속)</div>')+foot+'</div></section>';
+      off+=parts[p].length;
+    }
+  }
 
   const per=d.nextPer||4;
   const chunks=[];for(let i=0;i<rest.length;i+=per)chunks.push(rest.slice(i,i+per));
@@ -3938,16 +3960,16 @@ async function importBank(file){
   const have=new Set();docs.forEach(d=>(d.items||[]).forEach(i=>{if(i.bk)have.add(i.bk)}));
   const fresh=res.txs.filter(t=>!have.has(t.key)),dup=res.txs.length-fresh.length;
   if(!fresh.length){toast('이미 가져온 거래입니다. 새로 만들 결의서가 없습니다.',5000);return}
-  const groups={};fresh.forEach(t=>{const k=t.date+'|'+t.kind;(groups[k]=groups[k]||[]).push(t)});
+  const groups={};fresh.forEach(t=>{t.r=classifyText(t.memo+' '+t.vendor,S_fType(),t.kind);const k=t.date+'|'+t.kind+'|'+(t.r?(t.r.gwanC||'')+'.'+(t.r.hangC||'')+'.'+(t.r.mokC||''):'미분류');(groups[k]=groups[k]||[]).push(t)});
   const keys=Object.keys(groups).sort();
   const m=document.createElement('div');m.className='modal bk';
   const sum=a=>a.reduce((x,t)=>x+t.amt,0);
   const nIn=fresh.filter(t=>t.kind==='in').length,nOut=fresh.length-nIn;
   m.innerHTML='<div class="box" style="max-width:720px;width:94vw;text-align:left"><h3>통장 거래내역 가져오기</h3>'
-    +'<div class="muted">거래 '+fresh.length+'건 (수입 '+nIn+' · 지출 '+nOut+') → 결의서 <b>'+keys.length+'</b>건이 만들어집니다. 같은 날짜의 수입은 수입결의서 1건, 지출은 지출결의서 1건으로 묶입니다.'
+    +'<div class="muted">거래 '+fresh.length+'건 (수입 '+nIn+' · 지출 '+nOut+') → 결의서 <b>'+keys.length+'</b>건이 만들어집니다. 같은 날짜라도 <b>관·항·목이 같은 거래끼리만</b> 한 결의서로 묶이고, 과목을 알 수 없는 거래는 따로 묶입니다.'
     +(dup?' <br>이미 가져온 거래 '+dup+'건은 제외했습니다.':'')+(res.skipped?' <br>날짜를 읽지 못한 행 '+res.skipped+'개는 건너뜁니다.':'')+'</div>'
-    +'<div class="scroll"><table><tr><th>날짜</th><th>구분</th><th>건수</th><th style="text-align:right">금액</th><th>적요(앞 2건)</th></tr>'
-    +keys.map(k=>{const [dt,kd]=k.split('|'),a=groups[k];return '<tr><td>'+dt+'</td><td><span class="tag '+(kd==='in'?'in':'')+'">'+(kd==='in'?'수입':'지출')+'</span></td><td>'+a.length+'</td><td class="r">'+fmt(sum(a))+'</td><td>'+esc(a.slice(0,2).map(t=>t.memo||'(내용 없음)').join(' / '))+'</td></tr>'}).join('')
+    +'<div class="scroll"><table><tr><th>날짜</th><th>구분</th><th>과목</th><th>건수</th><th style="text-align:right">금액</th><th>적요(앞 2건)</th></tr>'
+    +keys.map(k=>{const [dt,kd]=k.split('|'),a=groups[k];return '<tr><td>'+dt+'</td><td><span class="tag '+(kd==='in'?'in':'')+'">'+(kd==='in'?'수입':'지출')+'</span></td><td>'+esc(a[0].r?a[0].r.mok:'미분류')+'</td><td>'+a.length+'</td><td class="r">'+fmt(sum(a))+'</td><td>'+esc(a.slice(0,2).map(t=>t.memo||'(내용 없음)').join(' / '))+'</td></tr>'}).join('')
     +'</table></div><div class="row" style="margin-top:10px"><button class="pri" id="bkOk">결의서 '+keys.length+'건 만들기</button><button id="bkNo">취소</button></div>'
     +'<div class="muted" style="margin-top:8px">만든 뒤 적요·과목을 확인하고, 증빙 사진을 붙이세요. 입금자 이름처럼 과목을 알 수 없는 건은 과목을 직접 선택해야 합니다.</div></div>';
   document.body.appendChild(m);
@@ -3956,8 +3978,9 @@ async function importBank(file){
     m.remove();toast('결의서를 만드는 중…',8000);
     let made=0,added=0;
     for(const k of keys){
-      const [dt,kd]=k.split('|');
-      let d=docs.find(x=>x.bank&&x.date===dt&&x.kind===kd),isNew=false;
+      const [dt,kd,cd]=k.split('|');
+      const sameCls=x=>cd==='미분류'?!x.mokC:((x.gwanC||'')+'.'+(x.hangC||'')+'.'+(x.mokC||''))===cd;
+      let d=docs.find(x=>x.bank&&x.date===dt&&x.kind===kd&&sameCls(x)),isNew=false;
       if(!d){
         d=newDoc();isNew=true;
         d.date=dt;d.year=dt.slice(0,4);d.kind=kd;d.bank=true;d.acctAuto=true;
@@ -3965,7 +3988,7 @@ async function importBank(file){
         d.no=autoNo(dt);d.items=[];docs.push(d);
       }
       for(const t of groups[k]){
-        const r=classifyText(t.memo+' '+t.vendor,d.fType,kd);
+        const r=t.r;
         const it={acct:(r&&!r.mok.includes('○○'))?r.mok:'',memo:t.memo,amt:t.amt,vendor:t.vendor===t.memo?'':t.vendor,fund:'',bk:t.key};
         d.items.push(it);added++;
       }
