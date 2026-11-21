@@ -3305,7 +3305,7 @@ function pagesHTML(d){
       +'<div class="evgrid evbox" style="'+gridStyle(c.length,d.evLay)+'">'+c.map(p=>evCell(p,anyCap)).join('')+'</div>'
       +'<div class="foot"><span>시설명 : '+esc(d.facility)+'</span><span></span></div></div></section>';
   });
-  const bn=Math.max(0,Math.min(10,+d.blankPg||0));
+  const bn=photos.length?0:Math.max(0,Math.min(10,+d.blankPg||0));
   for(let i=1;i<=bn;i++){
     out+='<section class="page"><div class="pg-in"><div class="evhead"><span><b>증빙서류</b>　'+esc(d.biz)+'</span><span>결의서 번호 '+esc(d.no)+'　('+i+'/'+bn+')</span></div>'
       +'<div class="blankbody"><span class="hint">증빙서류를 붙이는 면</span></div>'
@@ -4424,7 +4424,6 @@ async function renderBooklet(){
   const L=blDocs();if(!BL.inc)BL.inc=new Set(L.map(d=>d.id));
   const inc=L.filter(d=>BL.inc.has(d.id));
   if(!BL.sel||!L.some(d=>d.id===BL.sel))BL.sel=(inc[0]||L[0]||{}).id||'';
-  const nOpt=v=>[0,1,2,3,4,5,6,7,8,9,10].map(n=>'<option value="'+n+'"'+(n===v?' selected':'')+'>'+n+'쪽</option>').join('');
   $('#app').innerHTML='<div class="topbar"><button id="blBack">← 목록</button><h1>📖 책자 출력</h1>'
    +'<select id="blY" style="width:auto" title="연도">'+ys.map(y=>'<option'+(y===BL.y?' selected':'')+'>'+y+'</option>').join('')+'</select>'
    +'<select id="blM" style="width:auto" title="월"><option value="">연간</option>'+[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>'<option value="'+m+'"'+(+BL.m===m?' selected':'')+'>'+m+'월</option>').join('')+'</select>'
@@ -4433,11 +4432,11 @@ async function renderBooklet(){
    +'<div class="wrap"><div class="grid bl2" style="grid-template-columns:minmax(320px,430px) 1fr;gap:12px;align-items:start">'
    +'<div><div style="position:sticky;top:57px;z-index:6;background:var(--bg);padding:5px 0 10px"><div class="card" style="margin:0"><h2>증빙 파일 추가 <small>'+(BL.sel?esc((L.find(d=>d.id===BL.sel)||{}).no||'')+' · 현재 '+(((L.find(d=>d.id===BL.sel)||{}).photos||[]).length)+'장':'')+'</small></h2>'
    +'<div class="rb"><span class="rbl">넣을 위치</span>'+[['next','증빙서류칸'],['inline','비고칸']].map(x=>'<label class="rbo"><input type="radio" name="blMode" value="'+x[0]+'"'+(BL.mode===x[0]?' checked':'')+'>'+x[1]+'</label>').join('')+'</div>'
-   +'<div class="rb"><span class="rbl">한 쪽에</span>'+[['1','1장'],['2v','2장 세로'],['2h','2장 가로'],['4','4장']].map(x=>'<label class="rbo"><input type="radio" name="blPer" value="'+x[0]+'"'+(BL.per===x[0]?' checked':'')+'>'+x[1]+'</label>').join('')+'</div>'
+   +'<div class="rb"><span class="rbl">한 쪽에</span>'+[['1','1장'],['2v','2장 상하'],['2h','2장 좌우'],['4','4장']].map(x=>'<label class="rbo"><input type="radio" name="blPer" value="'+x[0]+'"'+(BL.per===x[0]?' checked':'')+'>'+x[1]+'</label>').join('')+'</div>'
    +'<div id="blDrop" style="margin-top:8px;border:2px dashed #8aa;border-radius:10px;padding:12px;text-align:center;background:#f8fbff">PDF·이미지를 여기에 <b>끌어다 놓으세요</b> (오른쪽 미리보기에 놓아도 됩니다)<br><button class="sm" id="blPick" style="margin-top:6px">파일 선택</button>'+(((L.find(d=>d.id===BL.sel)||{}).photos||[]).length?' <button class="sm dng" id="blClear" style="margin-top:6px">증빙 사진 모두 삭제</button>':'')+'<input type="file" id="blFile" accept="image/*,application/pdf" multiple style="display:none"></div>'
    +'<div class="muted" style="margin-top:4px;font-size:12px">선택한 결의서에 최대 4개씩 칸을 나누어 넣고, 넘치면 다음 쪽으로 이어집니다.</div></div></div>'
-   +'<div class="card" style="padding:0"><table class="dl"><tr><th style="width:30px"><input type="checkbox" id="blAll" style="width:auto"></th><th>번호</th><th>사업 / 적요</th><th style="text-align:right">금액</th><th style="width:78px">증빙 쪽</th></tr>'
-   +(L.length?L.map(d=>{const f1=(d.items||[]).find(filled);return '<tr class="item'+(d.id===BL.sel?' hl':'')+'" data-id="'+d.id+'"><td data-stop><input type="checkbox" class="bk1" style="width:auto"'+(BL.inc.has(d.id)?' checked':'')+'></td><td>'+(d.kind==='in'?'<span class="tag in">수입</span>':'')+esc(d.no)+'</td><td>'+esc(d.biz)+(f1?' <span class="muted">'+esc(f1.memo||f1.acct)+'</span>':'')+'</td><td class="r">'+fmt(sumOf(d))+'</td><td data-stop><select class="bn" style="width:auto;padding:2px">'+nOpt(+d.blankPg||0)+'</select></td></tr>'}).join(''):'<tr><td colspan="5" class="muted" style="padding:14px">해당 기간의 결의서가 없습니다.</td></tr>')
+   +'<div class="card" style="padding:0"><table class="dl"><tr><th style="width:30px"><input type="checkbox" id="blAll" style="width:auto"></th><th>번호</th><th>사업 / 적요</th><th style="text-align:right">금액</th></tr>'
+   +(L.length?L.map(d=>{const f1=(d.items||[]).find(filled);return '<tr class="item'+(d.id===BL.sel?' hl':'')+'" data-id="'+d.id+'"><td data-stop><input type="checkbox" class="bk1" style="width:auto"'+(BL.inc.has(d.id)?' checked':'')+'></td><td>'+(d.kind==='in'?'<span class="tag in">수입</span>':'')+esc(d.no)+'</td><td>'+esc(d.biz)+(f1?' <span class="muted">'+esc(f1.memo||f1.acct)+'</span>':'')+'</td><td class="r">'+fmt(sumOf(d))+'</td></tr>'}).join(''):'<tr><td colspan="4" class="muted" style="padding:14px">해당 기간의 결의서가 없습니다.</td></tr>')
    +'</table></div></div>'
    +'<div style="position:sticky;top:62px;align-self:start"><div class="row" style="margin-bottom:6px"><b>미리보기</b><label style="display:inline-flex;gap:4px;align-items:center;margin-left:10px"><input type="checkbox" id="blWhole" style="width:auto"'+(BL.all?' checked':'')+'> 체크한 전체 책자 보기</label><span class="muted" id="blInfo"></span></div><div class="pvbox" id="blPv" style="position:static;max-height:calc(100vh - 130px)"></div></div>'
    +'</div></div>';
@@ -4477,7 +4476,6 @@ async function renderBooklet(){
     const id=tr.dataset.id;
     tr.onclick=e=>{if(e.target.closest('[data-stop]'))return;BL.sel=id;BL.all=false;renderBooklet()};
     tr.querySelector('.bk1').onchange=e=>{e.target.checked?BL.inc.add(id):BL.inc.delete(id);renderBooklet()};
-    tr.querySelector('.bn').onchange=async e=>{const d=docs.find(x=>x.id===id);d.blankPg=+e.target.value;d.updated=Date.now();await Store.save(d);BL.sel=id;renderBooklet()};
   });
   $('#blPrint').onclick=()=>{if(!inc.length){toast('인쇄할 결의서를 체크하세요');return}printDocs(inc)};
   window.scrollTo(0,sy);
@@ -4510,8 +4508,9 @@ async function renderBooklet(){
 
 /* ---------- 시작 ---------- */
 let view='list';
+function resetBp(){if(!S.bpv&&docs.length){S.bpv=1;saveS();try{Store.saveProfile()}catch(e){}docs.filter(d=>d.blankPg>0).forEach(d=>{d.blankPg=0;Store.save(d)})}}
 function applySnapshot(arr){
-  docs=arr.map(d=>(cur&&d.id===cur.id)?cur:d);
+  docs=arr.map(d=>(cur&&d.id===cur.id)?cur:d);resetBp();
   [...sel].forEach(id=>{if(!docs.some(d=>d.id===id))sel.delete(id)});
   if(pendingOpen&&docs.some(d=>d.id===pendingOpen)){const id=pendingOpen;pendingOpen=null;history.replaceState(null,'',location.pathname+location.search);openDoc(id).then(()=>{const c=$('#photoCard');if(c)c.scrollIntoView()});return}
   if(cur)return;                       // 편집 중에는 화면을 건드리지 않음
@@ -4533,7 +4532,7 @@ function applySnapshot(arr){
     $('#app').innerHTML='<div class="wrap"><div class="card"><h2>Firebase를 불러오지 못했습니다</h2><div class="err">'+esc(e.message||e)+'</div><p class="muted">네트워크에서 gstatic.com 접속이 막혀 있거나 설정값이 잘못되었을 수 있습니다.</p></div></div>';
     return;
   }
-  if(!Store.cloud){docs=await DB.all();renderList()}
+  if(!Store.cloud){docs=await DB.all();resetBp();renderList()}
 })();
 })();
 </script>
