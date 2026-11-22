@@ -208,9 +208,122 @@ tr.hl td{background:#fff3b0!important}
 @media(max-width:900px){.bl2{grid-template-columns:1fr!important}}
 details.more{margin-top:10px}details.more summary{cursor:pointer;font-size:12.5px;color:var(--sub)}
 </style>
+<style id="ui2">
+/* ===== 새 디자인 (대시보드 · 좌측 메뉴) ===== */
+:root{--bg:#f4f6fb;--card:#fff;--line:#e4e8f0;--ink:#1b2437;--sub:#667085;--pri:#2f5bea;--pri2:#2348c8;--pri-soft:#eaf0ff;--danger:#d92d20;--ok:#12805c;--warn:#b54708;--side:#0f1a38;--side2:#16224a;--sh1:0 1px 2px rgba(16,24,40,.05);--sh2:0 4px 16px rgba(16,24,40,.08)}
+body{font-family:'Pretendard','Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Noto Sans KR','Noto Sans CJK KR',sans-serif;background:var(--bg);color:var(--ink);letter-spacing:-.01em;-webkit-font-smoothing:antialiased}
+button{border-radius:8px;border:1px solid var(--line);background:#fff;font-weight:500;padding:7px 13px;box-shadow:var(--sh1);transition:background .12s,border-color .12s,box-shadow .12s,transform .05s}
+button:hover{background:#f7f9fc;border-color:#cfd6e4}
+button:active{transform:translateY(1px)}
+button.pri{background:var(--pri);border-color:var(--pri);color:#fff;box-shadow:0 1px 2px rgba(47,91,234,.35)}
+button.pri:hover{background:var(--pri2);border-color:var(--pri2)}
+button.dng{color:var(--danger)}button.dng:hover{background:#fef3f2;border-color:#fecdca}
+button.sm{padding:4px 10px;font-size:12px;border-radius:7px}
+input,textarea,select{border:1px solid #d5dbe7;border-radius:8px;padding:8px 10px;transition:border-color .12s,box-shadow .12s}
+input:focus,textarea:focus,select:focus{outline:0;border-color:var(--pri);box-shadow:0 0 0 3px rgba(47,91,234,.15)}
+label{font-weight:500;color:#475467}
+.card{border:1px solid var(--line);border-radius:14px;box-shadow:var(--sh1);padding:16px 18px}
+.card h2{font-size:15px;font-weight:700;color:var(--ink)}
+.topbar{background:rgba(255,255,255,.86);backdrop-filter:saturate(1.4) blur(8px);-webkit-backdrop-filter:saturate(1.4) blur(8px);border-bottom:1px solid var(--line);padding:11px 20px}
+.topbar h1{font-size:17px;font-weight:700;letter-spacing:-.02em}
+.wrap{padding:20px 22px;max-width:1360px}
+.banner{border-radius:10px}
+.dl{border:1px solid var(--line);border-radius:14px;box-shadow:var(--sh1)}
+.dl th{background:#f8fafc;color:#667085;font-weight:600;font-size:12px;padding:11px 10px}
+.dl td{padding:11px 10px;border-bottom:1px solid #eef1f6}
+.dl tr.item:hover{background:#f6f8fd}
+.dl tr:last-child td{border-bottom:0}
+.tag{border-radius:999px;font-weight:600}
+.empty{border-radius:14px;background:#fff}
+.modal .box{border-radius:16px;box-shadow:0 20px 50px rgba(16,24,40,.25)}
+.toast{border-radius:10px;box-shadow:var(--sh2)}
+.bktabs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.bktabs button.on{background:var(--pri-soft);border-color:#bcd0ff;color:var(--pri2);font-weight:700}
+/* 셸 */
+#shell{display:flex;min-height:100vh}
+#main{flex:1;min-width:0}
+#app{min-height:100vh}
+#side{width:236px;flex:none;position:sticky;top:0;height:100vh;overflow:auto;background:linear-gradient(180deg,var(--side) 0%,var(--side2) 100%);color:#c7d2ee;display:flex;flex-direction:column;padding:16px 12px;z-index:30}
+#shell.rail #side{width:68px;padding:16px 8px}
+#shell.nologin #side{display:none}
+.sd-brand{display:flex;align-items:center;gap:10px;padding:2px 8px 14px}
+.sd-logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#5b7cff,#2f5bea);display:flex;align-items:center;justify-content:center;font-size:18px;flex:none;box-shadow:0 4px 12px rgba(47,91,234,.45)}
+.sd-brand b{display:block;color:#fff;font-size:14.5px;letter-spacing:-.02em;line-height:1.2}
+.sd-brand span{font-size:11px;color:#8fa0cc}
+.sd-ac{margin:2px 4px 12px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08)}
+.sd-ac small{display:block;color:#8fa0cc;font-size:10.5px;margin-bottom:3px}
+.sd-ac select{background:transparent;color:#fff;border:0;padding:2px 0;font-size:13px;font-weight:600;box-shadow:none;width:100%}
+.sd-ac select option{color:#111}
+.sd-sec{font-size:10.5px;letter-spacing:.08em;color:#6f82b5;margin:14px 10px 6px;font-weight:700}
+.sd-item{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:transparent;border:0;box-shadow:none;color:#c7d2ee;padding:9px 11px;border-radius:10px;font-size:13.5px;font-weight:500;margin-bottom:2px}
+.sd-item i{font-style:normal;font-size:16px;width:20px;text-align:center;flex:none}
+.sd-item:hover{background:rgba(255,255,255,.08);color:#fff;border:0}
+.sd-item.on{background:rgba(91,124,255,.22);color:#fff;font-weight:700;box-shadow:inset 3px 0 0 #7b96ff}
+.sd-new{background:var(--pri);color:#fff;font-weight:700;margin:4px 0 6px;justify-content:center;box-shadow:0 4px 12px rgba(47,91,234,.4)}
+.sd-new:hover{background:#4169f0;color:#fff}
+.sd-foot{margin-top:auto;padding:12px 6px 0;border-top:1px solid rgba(255,255,255,.1)}
+.sd-user{font-size:11.5px;color:#9fb0da;margin-bottom:8px;word-break:break-all;padding:0 4px}
+.sd-foot .sd-item{font-size:12.5px;padding:7px 10px}
+#shell.rail .sd-brand div,#shell.rail .sd-ac,#shell.rail .sd-sec,#shell.rail .sd-item span,#shell.rail .sd-user{display:none}
+#shell.rail .sd-item{justify-content:center;padding:10px 0}
+#shell.rail .sd-brand{justify-content:center;padding:2px 0 14px}
+#bnav{display:none}
+/* 대시보드 */
+.hm-head{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.hm-head h2{margin:0;font-size:22px;font-weight:800;letter-spacing:-.03em}
+.hm-head p{margin:3px 0 0;color:var(--sub);font-size:13px}
+.hm-head .sp{flex:1}
+.hm-head select{width:auto;min-width:96px;font-weight:600}
+.hm-act{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.hm-act button{padding:9px 14px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--sh1);position:relative;overflow:hidden}
+.kpi .ic{position:absolute;right:14px;top:14px;width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px}
+.kpi .lb{font-size:12.5px;color:var(--sub);font-weight:600}
+.kpi .vl{font-size:25px;font-weight:800;letter-spacing:-.03em;margin:6px 0 2px;font-variant-numeric:tabular-nums}
+.kpi .vl small{font-size:13px;font-weight:600;color:var(--sub);margin-left:2px}
+.kpi .sb{font-size:12px;color:var(--sub)}
+.kpi.in .ic{background:#e7f6ee;color:#12805c}.kpi.out .ic{background:#fff1e6;color:#c4620a}.kpi.bal .ic{background:var(--pri-soft);color:var(--pri)}.kpi.cnt .ic{background:#f1ecff;color:#6941c6}
+.hm-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:14px;margin-bottom:14px}
+.hm-grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+.hm-grid .card,.hm-grid2 .card{margin:0}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--sub);margin-left:auto}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.todo{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:10px;margin-bottom:8px;font-size:13px;line-height:1.45}
+.todo.w{background:#fffaeb;border:1px solid #fedf89}.todo.d{background:#fef3f2;border:1px solid #fecdca}.todo.i{background:#eff4ff;border:1px solid #c7d7fe}.todo.ok{background:#ecfdf3;border:1px solid #abefc6;color:#067647}
+.todo b{display:block}.todo .go{margin-left:auto;flex:none}
+.bars .r{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:12.5px}
+.bars .nm{width:110px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bars .tr{flex:1;height:10px;background:#eef1f7;border-radius:6px;overflow:hidden}
+.bars .tr i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,#5b7cff,#2f5bea)}
+.bars .am{width:92px;text-align:right;font-variant-numeric:tabular-nums;color:#475467;flex:none}
+.start{background:linear-gradient(135deg,#eef3ff,#f7f4ff);border:1px solid #d6e0ff}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:10px}
+.step{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.step b{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.step b em{font-style:normal;width:22px;height:22px;border-radius:50%;background:var(--pri);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center}
+.step p{margin:0 0 8px;color:var(--sub);font-size:12.5px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.toolbar .fx{flex:1;min-width:200px}
+@media(max-width:1100px){.kpis{grid-template-columns:repeat(2,1fr)}.hm-grid,.hm-grid2{grid-template-columns:1fr}}
+@media(max-width:900px){
+  #side{display:none}
+  .wrap{padding:14px 12px}
+  #main{padding-bottom:68px}
+  #bnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-top:1px solid var(--line);padding:4px 4px calc(4px + env(safe-area-inset-bottom))}
+  #bnav button{flex:1;border:0;box-shadow:none;background:transparent;display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10.5px;color:#667085;padding:5px 0;border-radius:10px}
+  #bnav button i{font-style:normal;font-size:19px;line-height:1.1}
+  #bnav button.on{color:var(--pri);font-weight:700;background:var(--pri-soft)}
+  #bnav button.nw i{background:var(--pri);color:#fff;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;margin-top:-14px;box-shadow:0 4px 12px rgba(47,91,234,.45)}
+  .kpis{gap:10px}.kpi{padding:13px 14px}.kpi .vl{font-size:20px}.steps{grid-template-columns:1fr}
+}
+@media print{#shell,#bnav{display:none!important}}
+</style>
+
 </head>
 <body>
-<div id="app"></div>
+<div id="shell"><aside id="side"></aside><main id="main"><div id="app"></div></main></div>
+<nav id="bnav"></nav>
 <div id="printRoot"></div>
 <div class="toast" id="toast"></div>
 <input type="file" id="fileCam" accept="image/*" capture="environment" class="hidden">
@@ -2782,7 +2895,7 @@ const Folder={
     const j={year:(d.year||(d.date||'').slice(0,4)||'연도미정')+'년',mon:((d.date||'').slice(5,7)||'00')+'월',no:d.no||'번호없음',file,name:''};
     j.name=this.safe(d.no)+'_'+String(d.fseq).padStart(2,'0')+'_'+this.safe(file.name||'증빙');
     if(await this.perm(true)){try{await this.write(j);return}catch(e){console.error(e)}}
-    this.pend.push(j);if(view==='list')renderList();
+    this.pend.push(j);if(view==='list'||view==='settings'||view==='home')refreshView();
     toast('폴더 접근 허용이 필요해 '+this.pend.length+'건을 대기시켰습니다. 목록 화면의 [대기 파일 저장]을 눌러 주세요',6000);
   },
   async flush(ask){
@@ -2790,7 +2903,7 @@ const Folder={
     if(!(await this.perm(ask))){toast('폴더 접근을 허용해야 저장할 수 있습니다');return}
     let n=0;const rest=[];
     for(const j of this.pend){try{await this.write(j);n++}catch(e){console.error(e);rest.push(j)}}
-    this.pend=rest;toast('폴더에 '+n+'건 저장했습니다'+(rest.length?' (실패 '+rest.length+'건)':''));if(view==='list')renderList();
+    this.pend=rest;toast('폴더에 '+n+'건 저장했습니다'+(rest.length?' (실패 '+rest.length+'건)':''));if(view==='list'||view==='settings'||view==='home')refreshView();
   }
 };
 function folderInline(){
@@ -2807,8 +2920,8 @@ function folderHTML(){
     +(Folder.pend.length?'<button class="sm pri" id="fdFlush">대기 파일 저장 ('+Folder.pend.length+')</button>':'')+'</div></div>';
 }
 function bindFolder(){
-  const p=$('#fdPick');if(p)p.onclick=async()=>{try{await Folder.pick();renderList()}catch(e){if(e&&e.name!=='AbortError')toast('폴더를 지정하지 못했습니다')}};
-  const c=$('#fdClear');if(c)c.onclick=async()=>{await Folder.clear();renderList()};
+  const p=$('#fdPick');if(p)p.onclick=async()=>{try{await Folder.pick();refreshView()}catch(e){if(e&&e.name!=='AbortError')toast('폴더를 지정하지 못했습니다')}};
+  const c=$('#fdClear');if(c)c.onclick=async()=>{await Folder.clear();refreshView()};
   const f=$('#fdFlush');if(f)f.onclick=()=>Folder.flush(true);
 }
 
@@ -2830,7 +2943,7 @@ const adocs=()=>docs.filter(inAc);
 function switchAc(id){
   syncOut();const a=S.acs.find(x=>x.id===id);if(!a)return;
   AC_F.forEach(k=>{if(a[k]!==undefined)S[k]=a[k]});S.open=a.open||{};S.bud=a.bud||{};S.ac=id;
-  sel.clear();saveS();Store.saveProfile();if(Store.cloud&&Store.user&&Store.fb){Store.initYears();Store.watch()}renderList();
+  sel.clear();saveS();Store.saveProfile();if(Store.cloud&&Store.user&&Store.fb){Store.initYears();Store.watch()}refreshView();
 }
 function acYears(){const a=S.acs.find(x=>x.id===S.ac)||{};return (a.yrs||[]).slice().sort().reverse()}
 function noteYear(d){
@@ -2883,7 +2996,7 @@ function acEditDlg(){
     if(S.acs.some(x=>x.id!==a.id&&x.name===n)){toast('같은 이름의 회계목록이 있습니다');return}
     const p={acctDiv:dv.value,facKind:kd.disabled?(a.facKind||'facility'):kd.value};
     a.name=n;S.acctDiv=p.acctDiv;S.facKind=p.facKind;S.fType=fTypeOfS(p);S.acctType=acctShort(p);
-    saveS();Store.saveProfile();m.remove();renderList();toast('수정했습니다');
+    saveS();Store.saveProfile();m.remove();refreshView();toast('수정했습니다');
   };
 }
 function acHTML(){
@@ -2896,8 +3009,8 @@ function acHTML(){
 function bindAc(){
   const sl=$('#acSel');if(!sl)return;
   sl.onchange=()=>switchAc(sl.value);
-  $('#acNew').onclick=()=>{if(!S.saved){toast('먼저 ① 시설 정보를 입력하고 저장하세요');return}acNewDlg()};
-  $('#acRen').onclick=()=>{const a=S.acs.find(x=>x.id===S.ac);const n=(prompt('회계목록 이름',a.name)||'').trim();if(!n||n===a.name)return;if(S.acs.some(x=>x.name===n)){toast('같은 이름의 회계목록이 있습니다');return}a.name=n;saveS();Store.saveProfile();renderList()};
+  $('#acNew').onclick=()=>{if(!S.saved){toast('먼저 아래 시설 정보를 입력하고 저장하세요');return}acNewDlg()};
+  $('#acRen').onclick=()=>{const a=S.acs.find(x=>x.id===S.ac);const n=(prompt('회계목록 이름',a.name)||'').trim();if(!n||n===a.name)return;if(S.acs.some(x=>x.name===n)){toast('같은 이름의 회계목록이 있습니다');return}a.name=n;saveS();Store.saveProfile();refreshView()};
   const dl=$('#acDel');if(dl)dl.onclick=async()=>{
     if(S.acs.length<2){toast('회계목록이 하나뿐이어서 삭제할 수 없습니다. 먼저 다른 회계목록을 만드세요',4500);return}
     await Store.loadAll();const a=S.acs.find(x=>x.id===S.ac),L=adocs();
@@ -3566,21 +3679,21 @@ function profHTML(){
    +'<div class="row" style="margin-top:10px"><button class="pri" id="pfSave">저장</button>'+(S.saved?'<button id="pfCancel">취소</button>':'')+'</div></div>';
 }
 function bindProf(){
-  const e=$('#pfEdit');if(e)e.onclick=()=>{profOpen=true;renderList()};
-  const c=$('#pfCancel');if(c)c.onclick=()=>{profOpen=false;renderList()};
-  const dv=$('#pfDiv');if(dv)dv.onchange=()=>{S.acctDiv=dv.value;readProf();renderList()};
+  const e=$('#pfEdit');if(e)e.onclick=()=>{profOpen=true;refreshView()};
+  const c=$('#pfCancel');if(c)c.onclick=()=>{profOpen=false;refreshView()};
+  const dv=$('#pfDiv');if(dv)dv.onchange=()=>{S.acctDiv=dv.value;readProf();refreshView()};
   [['Head','stampHead'],['Mgr','stampMgr']].forEach(([k,f])=>{
     const up=$('#stUp'+k),fi=$('#stF'+k),dl=$('#stDel'+k);if(!up)return;
     up.onclick=()=>fi.click();
-    fi.onchange=async()=>{if(!fi.files[0])return;try{readProf();S[f]=await stampData(fi.files[0]);saveS();renderList()}catch(e){toast('이미지를 읽지 못했습니다')}};
-    if(dl)dl.onclick=()=>{readProf();S[f]='';saveS();renderList()};
+    fi.onchange=async()=>{if(!fi.files[0])return;try{readProf();S[f]=await stampData(fi.files[0]);saveS();refreshView()}catch(e){toast('이미지를 읽지 못했습니다')}};
+    if(dl)dl.onclick=()=>{readProf();S[f]='';saveS();refreshView()};
   });
   const sv=$('#pfSave');if(!sv)return;
   sv.onclick=async()=>{
     readProf();
     if(!S.facility.trim()){toast('시설명을 입력하세요');$('#pfFac').focus();return}
     S.saved=true;S.fType=fTypeOfS(S);S.acctType=acctShort(S);S.approvals=S.approvals&&S.approvals.length?S.approvals:['담당자','시설장'];
-    saveS();profOpen=false;renderList();toast('시설 정보를 저장했습니다');
+    saveS();profOpen=false;refreshView();toast('시설 정보를 저장했습니다');
     await Store.saveProfile();
   };
 }
@@ -3599,43 +3712,33 @@ function renderList(){
     if(!filter)return true;const q=filter.toLowerCase();
     return [d.no,d.biz,d.writer,...(d.items||[]).map(i=>i.acct+i.memo+i.vendor)].join(' ').toLowerCase().includes(q);
   }).sort((a,b)=>byNo(b,a));
-  const who=Store.cloud&&Store.user?'<span class="who">'+esc(Store.user.email||Store.user.displayName||'')+' <button class="sm" id="bOut">로그아웃</button></span>':'';
   $('#app').innerHTML=
-   '<div class="topbar"><h1>📋 지출결의서 · 증빙 촬영</h1>'+who+'</div>'
+   '<div class="topbar"><h1>결의서 목록</h1><button class="pri" id="bNew">＋ 새 결의서</button><button id="bBank">🏦 통장 거래내역 가져오기</button></div>'
   +'<div class="wrap">'
-  +(Store.cloud?'<div class="banner cld">☁ 로그인한 계정에 저장됩니다. 폰에서 올린 자료가 PC에서도 보입니다.</div>'
-     :'<div class="banner loc">📱 지금은 <b>이 기기에만</b> 저장되는 모드입니다. (Firebase 설정을 넣으면 구글 로그인·기기 간 동기화가 켜집니다)</div>')
-  +acHTML()
-  +profHTML()
-  +'<div class="listhead">'
-  +'<div class="fac" style="max-width:260px"><label>검색</label><input id="q" value="'+esc(filter)+'" placeholder="번호·사업·적요·거래처"></div>'
-  +'<button class="pri" id="bNew">＋ 새 결의서</button><button id="bBank">🏦 통장 거래내역 가져오기</button><button id="bBook">📒 장부·명세서</button><button id="bBooklet">📖 증빙서류입력</button>'+(adocs().some(isMixed)?'<button id="bSplitAll" style="background:#fff3cd">⚠ 목이 섞인 결의서 나누기 ('+docs.filter(isMixed).length+')</button>':'')
-  +'<button id="bPrintSel">🖨 선택 인쇄 (<span id="selN">'+sel.size+'</span>)</button>'
+  +'<div class="card"><div class="toolbar">'
+  +'<div class="fx" style="max-width:300px"><label>검색</label><input id="q" value="'+esc(filter)+'" placeholder="번호·사업·적요·거래처"></div>'
   +'<div style="width:96px"><label>출력 연도</label><select id="pY">'+perYears().map(y=>'<option'+(y===PP.y?' selected':'')+'>'+y+'</option>').join('')+'</select></div>'
   +'<div style="width:96px"><label>출력 월</label><select id="pM"><option value="">연간</option>'+[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>'<option value="'+m+'"'+(+PP.m===m?' selected':'')+'>'+m+'월</option>').join('')+'</select></div>'
-  +'<button id="bPerOut">🖨 지출결의서 출력 (<span id="nOut">0</span>)</button><button id="bPerIn">🖨 세입결의서 출력 (<span id="nIn">0</span>)</button><button id="bPerAll">🖨 전체 출력 (<span id="nAll">0</span>)</button>'
-  +'<button id="bExp">백업 저장</button><button id="bImp">백업 불러오기</button></div>'
+  +'<button id="bPerOut">🖨 지출결의서 (<span id="nOut">0</span>)</button><button id="bPerIn">🖨 세입결의서 (<span id="nIn">0</span>)</button><button id="bPerAll">🖨 전체 (<span id="nAll">0</span>)</button>'
+  +'<button id="bPrintSel">🖨 선택 인쇄 (<span id="selN">'+sel.size+'</span>)</button>'
+  +(adocs().some(isMixed)?'<button id="bSplitAll" style="background:#fffaeb;border-color:#fedf89">⚠ 목이 섞인 결의서 나누기</button>':'')
+  +'</div></div>'
   +(list.length?'<table class="dl"><tr><th style="width:30px"><input type="checkbox" id="all" style="width:auto"></th><th>번호</th><th>사업 / 적요</th><th style="text-align:right">금액</th><th>증빙</th><th></th></tr>'
     +list.map(d=>{const f1=(d.items||[]).find(filled);return '<tr class="item" data-id="'+d.id+'"><td data-stop><input type="checkbox" class="ck" style="width:auto" '+(sel.has(d.id)?'checked':'')+'></td>'
       +'<td>'+(d.kind==='in'?'<span class="tag in">수입</span>':'')+esc(d.no)+(isMixed(d)?' <span class="tag" style="background:#f5c518;color:#000" title="목이 서로 다른 항목이 섞여 있습니다">목 혼재</span>':'')+'</td><td>'+esc(d.biz)+(f1?' <span class="muted">'+esc(f1.memo||f1.acct)+'</span>':'')+'</td>'
       +'<td class="r">'+fmt(sumOf(d))+'</td><td>'+(d.photos||[]).length+'장</td>'
       +'<td data-stop style="white-space:nowrap"><button class="sm bDup">복제</button> <button class="sm dng bDel">삭제</button></td></tr>'}).join('')+'</table>'
     :'<div class="empty">아직 결의서가 없습니다. <b>＋ 새 결의서</b>를 눌러 시작하세요.</div>')
-  +'<p class="muted" style="margin-top:12px">PDF로 저장하려면 인쇄 창에서 "PDF로 저장"을 선택하세요. 백업 저장은 사진까지 포함한 JSON 파일을 내려받습니다.</p></div>';
-  const out=$('#bOut');if(out)out.onclick=()=>Store.logout();
-  bindAc();bindProf();bindFolder();
+  +'<p class="muted" style="margin-top:12px">PDF로 저장하려면 인쇄 창에서 "PDF로 저장"을 선택하세요.</p></div>';
   $('#q').oninput=e=>{filter=e.target.value;const p=e.target.selectionStart;renderList();const q=$('#q');q.focus();q.setSelectionRange(p,p)};
-  $('#bNew').onclick=()=>{if(!S.saved){toast('먼저 ① 시설 정보를 입력하고 저장하세요');const e=$('#pfFac');if(e)e.focus();return}const d=newDoc();docs.push(d);Store.save(d);openDoc(d.id)};
+  $('#bNew').onclick=()=>{if(!S.saved){toast('먼저 설정에서 시설 정보를 입력하고 저장하세요');renderSettings();return}const d=newDoc();docs.push(d);Store.save(d);openDoc(d.id)};
   $('#bPrintSel').onclick=()=>{if(!sel.size){toast('인쇄할 결의서를 체크하세요');return}printDocs(docs.filter(d=>sel.has(d.id)).sort(byNo))};
-  $('#bBank').onclick=()=>{if(!S.saved){toast('먼저 ① 시설 정보를 입력하고 저장하세요');return}$('#fileBank').click()};
-  $('#bBook').onclick=()=>openBooks();
-  $('#bBooklet').onclick=()=>{if(!adocs().length){toast('출력할 결의서가 없습니다');return}openBooklet()};
+  $('#bBank').onclick=()=>{if(!S.saved){toast('먼저 설정에서 시설 정보를 입력하고 저장하세요');renderSettings();return}$('#fileBank').click()};
   const sa=$('#bSplitAll');if(sa)sa.onclick=async()=>{if(!confirm('목이 서로 다른 항목이 섞인 결의서를 목별로 나눕니다. (증빙 사진은 원래 결의서에 남습니다) 진행할까요?'))return;let n=0;for(const d of adocs().filter(isMixed).slice())n+=await splitByMok(d);toast('결의서 '+n+'건을 새로 만들었습니다',4000);renderList()};
   const upd=()=>{PP.y=$('#pY').value;PP.m=$('#pM').value;PP.k='';const L=perDocs();$('#nAll').textContent=L.length;$('#nOut').textContent=L.filter(d=>d.kind!=='in').length;$('#nIn').textContent=L.filter(d=>d.kind==='in').length};
   $('#pY').onchange=async()=>{const y=$('#pY').value;if(Store.cloud&&Store.years&&!Store.years.has(y)){toast('불러오는 중…',4000);await Store.ensureYears([y]);PP.y=y;renderList();return}upd()};$('#pM').onchange=upd;upd();
   const perPrint=k=>{PP.k=k;const L=perDocs().filter(d=>!k||(k==='in'?d.kind==='in':d.kind!=='in'));PP.k='';if(!L.length){toast('해당 기간의 '+(k==='in'?'세입':k==='out'?'지출':'')+'결의서가 없습니다');return}printDocs(L)};
   $('#bPerOut').onclick=()=>perPrint('out');$('#bPerIn').onclick=()=>perPrint('in');$('#bPerAll').onclick=()=>perPrint('');
-  $('#bExp').onclick=exportAll;$('#bImp').onclick=()=>$('#fileImp').click();
   const all=$('#all');if(all){all.checked=list.length&&list.every(d=>sel.has(d.id));all.onchange=()=>{list.forEach(d=>all.checked?sel.add(d.id):sel.delete(d.id));renderList()}}
   document.querySelectorAll('.dl tr.item').forEach(tr=>{
     const id=tr.dataset.id;
@@ -3655,6 +3758,113 @@ function renderList(){
     };
   });
 }
+/* ---------- 새 화면: 대시보드 · 설정 · 좌측 메뉴 ---------- */
+let HM={y:''};
+function refreshView(){if(view==='settings')renderSettings();else if(view==='home')renderHome();else renderList()}
+const shortWon=n=>{n=Math.round(n);const a=Math.abs(n);if(a>=1e8)return (n/1e8).toFixed(1).replace(/\.0$/,'')+'억';if(a>=1e4)return Math.round(n/1e4).toLocaleString('ko-KR')+'만';return n.toLocaleString('ko-KR')};
+function renderSettings(){
+  cur=null;view='settings';
+  $('#app').innerHTML='<div class="topbar"><h1>⚙ 설정</h1><span class="stat">'+(Store.cloud?'☁ 로그인한 계정에 저장됩니다':'📱 이 기기에만 저장되는 모드입니다')+'</span></div>'
+   +'<div class="wrap" style="max-width:980px">'+acHTML()+profHTML()
+   +'<div class="card"><h2>데이터 백업 <small>사진까지 포함한 JSON 파일</small></h2><div class="row"><button id="bExp">백업 저장</button><button id="bImp">백업 불러오기</button></div>'
+   +'<p class="muted" style="margin:8px 0 0">백업 저장은 지금 선택한 회계목록의 결의서를 내려받고, 불러오기는 지금 선택한 회계목록에 추가합니다.</p></div></div>';
+  bindAc();bindProf();bindFolder();
+  $('#bExp').onclick=exportAll;$('#bImp').onclick=()=>$('#fileImp').click();
+}
+function renderHome(){
+  cur=null;view='home';
+  const ys=perYears();HM.y=HM.y||String(S.year||ys[0]||new Date().getFullYear());if(!ys.includes(HM.y))ys.unshift(HM.y);
+  if(Store.cloud&&Store.years&&S.qv&&!Store.years.has(HM.y)){Store.ensureYears([HM.y]).then(()=>{if(view==='home')renderHome()})}
+  const all=adocs(),D=all.filter(d=>String(d.year||(d.date||'').slice(0,4))===HM.y),T=booksTx(HM.y,true);
+  let inS=0,outS=0;const mi=Array(12).fill(0),mo=Array(12).fill(0),cat={};
+  T.forEach(t=>{const m=Math.max(0,Math.min(11,(+t.date.slice(5,7)||1)-1));if(t.kind==='in'){inS+=t.amt;mi[m]+=t.amt}else{outS+=t.amt;mo[m]+=t.amt;const k=t.hn||t.acct;cat[k]=(cat[k]||0)+t.amt}});
+  const open=bkOpen(HM.y),bal=open+inS-outS,nIn=D.filter(d=>d.kind==='in').length,nOut=D.length-nIn;
+  const miss=T.filter(t=>t.acct===MISS).length,noPh=D.filter(d=>d.kind!=='in'&&!(d.photos||[]).length&&sumOf(d)>0).length,mixed=D.filter(isMixed).length;
+  const ac=S.acs.find(a=>a.id===S.ac)||{name:''};
+  const now=new Date(),wd='일월화수목금토'[now.getDay()];
+  /* 월별 그래프 */
+  const W=640,H=220,pl=46,pb=26,pt=12,mx=Math.max(1,...mi,...mo),cw=(W-pl-8)/12;
+  const yy=v=>pt+(H-pt-pb)*(1-v/mx);
+  let svg='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;display:block">';
+  [0,.5,1].forEach(f=>{const y=yy(mx*f);svg+='<line x1="'+pl+'" x2="'+(W-4)+'" y1="'+y+'" y2="'+y+'" stroke="#e7ebf3"/><text x="'+(pl-6)+'" y="'+(y+4)+'" text-anchor="end" font-size="10.5" fill="#98a2b3">'+shortWon(mx*f)+'</text>'});
+  for(let m=0;m<12;m++){
+    const x=pl+cw*m+cw*.16,bw=cw*.32;
+    const a=mi[m],b=mo[m];
+    svg+='<rect x="'+x+'" y="'+yy(a)+'" width="'+bw+'" height="'+(H-pb-yy(a))+'" rx="3" fill="#12b886"><title>'+(m+1)+'월 세입 '+fmt(a)+'원</title></rect>'
+       +'<rect x="'+(x+bw+2)+'" y="'+yy(b)+'" width="'+bw+'" height="'+(H-pb-yy(b))+'" rx="3" fill="#f59f00"><title>'+(m+1)+'월 세출 '+fmt(b)+'원</title></rect>'
+       +'<text x="'+(pl+cw*m+cw/2)+'" y="'+(H-8)+'" text-anchor="middle" font-size="11" fill="#667085">'+(m+1)+'월</text>';
+  }
+  svg+='</svg>';
+  const cats=Object.entries(cat).sort((a,b)=>b[1]-a[1]).slice(0,6),cm=cats.length?cats[0][1]:1;
+  const todos=[];
+  if(miss)todos.push('<div class="todo w"><div><b>과목이 정해지지 않은 항목 '+miss+'건</b>총계정원장에서 같은 적요를 한꺼번에 계정과목으로 지정할 수 있습니다.</div><button class="sm go" data-go="ledger">정리하기</button></div>');
+  if(noPh)todos.push('<div class="todo w"><div><b>증빙 파일이 없는 지출결의서 '+noPh+'건</b>증빙서류입력에서 파일을 끌어다 놓으세요.</div><button class="sm go" data-go="booklet">입력하기</button></div>');
+  if(mixed)todos.push('<div class="todo d"><div><b>목이 섞인 결의서 '+mixed+'건</b>목별로 결의서를 나누어야 합니다.</div><button class="sm go" data-go="list">확인</button></div>');
+  if(S.saved&&!S.stampHead&&!S.stampMgr)todos.push('<div class="todo i"><div><b>결재인(도장) 이미지를 등록해 보세요</b>담당자·시설장 도장이 결의서에 자동으로 찍힙니다.</div><button class="sm go" data-go="settings">등록</button></div>');
+  if(!todos.length)todos.push('<div class="todo ok"><div><b>처리할 알림이 없습니다</b>모든 결의서가 정리되어 있습니다.</div></div>');
+  const recent=all.slice().sort((a,b)=>(b.updated||0)-(a.updated||0)).slice(0,6);
+  const start=(!S.saved||!all.length)?'<div class="card start" style="margin-bottom:14px"><h2>시작하기 <small>3단계로 첫 결의서를 만들어 보세요</small></h2><div class="steps">'
+    +'<div class="step"><b><em>1</em>시설 정보 입력</b><p>시설명·시설장·담당자와 회계구분을 정합니다.</p><button class="sm '+(S.saved?'':'pri')+'" data-go="settings">'+(S.saved?'✓ 완료 · 수정':'설정으로 이동')+'</button></div>'
+    +'<div class="step"><b><em>2</em>통장 거래내역 가져오기</b><p>엑셀을 올리면 결의서와 관·항·목이 자동으로 만들어집니다.</p><button class="sm" data-go="bank">엑셀 올리기</button></div>'
+    +'<div class="step"><b><em>3</em>증빙 첨부 · 출력</b><p>증빙서류를 끌어다 놓고 책자로 한 번에 인쇄합니다.</p><button class="sm" data-go="booklet">증빙서류입력</button></div></div></div>':'';
+  $('#app').innerHTML='<div class="wrap">'
+   +'<div class="hm-head"><div><h2>'+esc(S.facility||'지출결의서')+'</h2><p>'+esc(ac.name)+(S.acctDiv?' · '+esc(S.acctDiv):'')+' · '+now.getFullYear()+'년 '+(now.getMonth()+1)+'월 '+now.getDate()+'일 ('+wd+')</p></div><div class="sp"></div>'
+   +'<div><label>회계연도</label><select id="hmY">'+ys.map(y=>'<option'+(y===HM.y?' selected':'')+'>'+y+'</option>').join('')+'</select></div></div>'
+   +'<div class="hm-act"><button class="pri" data-go="new">＋ 새 결의서</button><button data-go="bank">🏦 통장 거래내역 가져오기</button><button data-go="books">📒 장부·명세서</button><button data-go="booklet">📖 증빙서류입력</button></div>'
+   +start
+   +'<div class="kpis">'
+   +'<div class="kpi in"><span class="ic">⬇</span><div class="lb">세입 합계</div><div class="vl">'+fmt(inS)+'<small>원</small></div><div class="sb">세입결의서 '+nIn+'건</div></div>'
+   +'<div class="kpi out"><span class="ic">⬆</span><div class="lb">세출 합계</div><div class="vl">'+fmt(outS)+'<small>원</small></div><div class="sb">지출결의서 '+nOut+'건</div></div>'
+   +'<div class="kpi bal"><span class="ic">💰</span><div class="lb">현재 잔액</div><div class="vl">'+(bal<0?'-':'')+fmt(Math.abs(bal))+'<small>원</small></div><div class="sb">기초잔액 '+fmt(open)+'원 포함</div></div>'
+   +'<div class="kpi cnt"><span class="ic">🧾</span><div class="lb">결의서</div><div class="vl">'+D.length+'<small>건</small></div><div class="sb">증빙 '+D.reduce((a,d)=>a+(d.photos||[]).length,0)+'장 첨부</div></div></div>'
+   +'<div class="hm-grid"><div class="card"><h2>월별 세입·세출 <span class="legend"><span><i style="background:#12b886"></i>세입</span><span><i style="background:#f59f00"></i>세출</span></span></h2>'+(T.length?svg:'<div class="empty" style="border:0;padding:30px">'+esc(HM.y)+'년도 거래가 없습니다.</div>')+'</div>'
+   +'<div class="card"><h2>할 일 · 알림</h2>'+todos.join('')+'</div></div>'
+   +'<div class="hm-grid2"><div class="card"><h2>세출 항목별 비중 <small>상위 6</small></h2><div class="bars">'
+   +(cats.length?cats.map(c=>'<div class="r"><span class="nm" title="'+esc(c[0])+'">'+esc(c[0])+'</span><span class="tr"><i style="width:'+Math.max(2,Math.round(c[1]/cm*100))+'%"></i></span><span class="am">'+fmt(c[1])+'</span></div>').join(''):'<div class="muted">세출 내역이 없습니다.</div>')+'</div></div>'
+   +'<div class="card"><h2>최근 작업한 결의서 <button class="sm" style="margin-left:auto" data-go="list">전체 보기</button></h2>'
+   +(recent.length?'<table class="dl" style="box-shadow:none;border:0;border-radius:0"><tbody>'+recent.map(d=>'<tr class="item" data-open="'+d.id+'"><td style="width:110px">'+(d.kind==='in'?'<span class="tag in">수입</span> ':'')+esc(d.no)+'</td><td>'+esc(d.biz||((d.items||[]).find(filled)||{}).memo||'')+'</td><td class="r" style="width:100px">'+fmt(sumOf(d))+'</td></tr>').join('')+'</tbody></table>':'<div class="muted">아직 결의서가 없습니다.</div>')+'</div></div></div>';
+  $('#hmY').onchange=e=>{HM.y=e.target.value;renderHome()};
+  document.querySelectorAll('#app [data-go]').forEach(b=>b.onclick=()=>navGo(b.dataset.go));
+  document.querySelectorAll('#app [data-open]').forEach(r=>r.onclick=()=>openDoc(r.dataset.open));
+}
+async function navGo(k){
+  if(k==='bank'){if(!S.saved){toast('먼저 설정에서 시설 정보를 입력하고 저장하세요');renderSettings();return}$('#fileBank').click();return}
+  await flushSave();
+  if(k==='home')renderHome();
+  else if(k==='list')renderList();
+  else if(k==='new'){if(!S.saved){toast('먼저 설정에서 시설 정보를 입력하고 저장하세요');renderSettings();return}const d=newDoc();docs.push(d);Store.save(d);openDoc(d.id)}
+  else if(k==='books'){BK.from=false;openBooks()}
+  else if(k==='ledger'){BK.from=false;openBooks('led')}
+  else if(k==='booklet'){if(!adocs().length){toast('결의서를 먼저 만드세요');return}openBooklet()}
+  else if(k==='settings')renderSettings();
+}
+function renderSide(){
+  const sd=$('#side'),bn=$('#bnav'),sh=$('#shell');if(!sd)return;
+  const login=Store.cloud&&!Store.user;
+  sh.classList.toggle('nologin',login);bn.style.display=login?'none':'';
+  if(login){sd.innerHTML='';bn.innerHTML='';return}
+  const act=cur?'list':view;
+  sh.classList.toggle('rail',!!localStorage.getItem('sidecol')||!!cur||view==='booklet');
+  const it=(k,ic,t,cls)=>'<button class="sd-item'+(act===k?' on':'')+(cls?' '+cls:'')+'" data-nav="'+k+'" title="'+t+'"><i>'+ic+'</i><span>'+t+'</span></button>';
+  sd.innerHTML='<div class="sd-brand"><div class="sd-logo">📋</div><div><b>지출결의서</b><span>증빙 촬영 · 장부</span></div></div>'
+   +'<div class="sd-ac"><small>회계목록</small><select id="sdAc">'+S.acs.map(a=>'<option value="'+a.id+'"'+(a.id===S.ac?' selected':'')+'>'+esc(a.name)+'</option>').join('')+'</select></div>'
+   +it('new','＋','새 결의서','sd-new')
+   +it('home','🏠','대시보드')
+   +'<div class="sd-sec">결의서</div>'+it('list','📋','결의서 목록')+it('bank','🏦','통장 거래내역 가져오기')
+   +'<div class="sd-sec">장부 · 서류</div>'+it('books','📒','장부·명세서')+it('booklet','📖','증빙서류입력')
+   +'<div class="sd-sec">관리</div>'+it('settings','⚙️','설정')
+   +'<div class="sd-foot">'+(Store.cloud&&Store.user?'<div class="sd-user">'+esc(Store.user.email||Store.user.displayName||'')+'</div><button class="sd-item" id="sdOut" title="로그아웃"><i>↩</i><span>로그아웃</span></button>':'<div class="sd-user">이 기기에만 저장</div>')
+   +'<button class="sd-item" id="sdCol" title="메뉴 접기/펴기"><i>◧</i><span>메뉴 접기</span></button></div>';
+  sd.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>navGo(b.dataset.nav));
+  const sa=$('#sdAc');if(sa)sa.onchange=async()=>{await flushSave();switchAc(sa.value)};
+  const so=$('#sdOut');if(so)so.onclick=()=>Store.logout();
+  $('#sdCol').onclick=()=>{if(localStorage.getItem('sidecol'))localStorage.removeItem('sidecol');else localStorage.setItem('sidecol','1');renderSide()};
+  const bi=(k,ic,t,cls)=>'<button class="'+(act===k?'on':'')+(cls?' '+cls:'')+'" data-nav="'+k+'"><i>'+ic+'</i>'+t+'</button>';
+  bn.innerHTML=bi('home','🏠','홈')+bi('list','📋','목록')+bi('new','＋','새 결의서','nw')+bi('books','📒','장부')+bi('settings','⚙️','설정');
+  bn.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>navGo(b.dataset.nav));
+}
+new MutationObserver(()=>renderSide()).observe($('#app'),{childList:true});
+
 async function exportAll(){
   toast('백업 파일 만드는 중…',6000);await Store.loadAll();
   const copy=[];let bad=0;
@@ -3675,7 +3885,7 @@ $('#fileImp').onchange=async e=>{
       await Store.save(d);const i=docs.findIndex(x=>x.id===d.id);if(i>=0)docs[i]=d;else docs.push(d)}
     if(j.settings){const st=Object.assign({},j.settings);['acs','ac','qv','open','bud','acctDiv','facKind','fType','acctType'].forEach(k=>delete st[k]);Object.assign(S,st);saveS()}
     await Store.ensureYears(j.docs.map(d=>String(d.year||'')));
-    toast(j.docs.length+'건 불러왔습니다');renderList();
+    toast(j.docs.length+'건 불러왔습니다');refreshView();
   }catch(err){console.error(err);toast('백업 파일을 읽을 수 없습니다')}
 };
 
@@ -3734,7 +3944,7 @@ function renderEdit(){
 
   $('#bList').onclick=async()=>{await flushSave();const yy=cur&&cur.year;BK.from=false;if(yy)await Store.ensureYears([String(yy)]);renderList()};
   const bb=$('#bBack');if(bb)bb.onclick=async()=>{await flushSave();renderBooks()};
-  $('#bFac').onclick=async()=>{await flushSave();profOpen=true;renderList()};
+  $('#bFac').onclick=async()=>{await flushSave();profOpen=true;renderSettings()};
   $('#autoOcr').onchange=e=>{S.autoOcr=e.target.checked;saveS()};
   $('#bPrint').onclick=()=>printDocs([cur]);
   $('#tF').onclick=()=>{tab='form';renderEdit()};$('#tP').onclick=()=>{tab='prev';renderEdit()};
@@ -4814,17 +5024,17 @@ async function renderBooklet(){
 }
 
 /* ---------- 시작 ---------- */
-let view='list';
+let view='home';
 function resetBp(){if(!S.bpv&&docs.length){S.bpv=1;saveS();try{Store.saveProfile()}catch(e){}docs.filter(d=>d.blankPg>0).forEach(d=>{d.blankPg=0;Store.save(d)})}}
 function applySnapshot(arr){
   docs=arr.map(d=>(cur&&d.id===cur.id)?cur:d);if(cur&&!docs.some(d=>d.id===cur.id))docs.push(cur);resetBp();
   [...sel].forEach(id=>{if(!docs.some(d=>d.id===id))sel.delete(id)});
   if(pendingOpen&&docs.some(d=>d.id===pendingOpen)){const id=pendingOpen;pendingOpen=null;history.replaceState(null,'',location.pathname+location.search);openDoc(id).then(()=>{const c=$('#photoCard');if(c)c.scrollIntoView()});return}
   if(cur)return;                       // 편집 중에는 화면을 건드리지 않음
-  if(view!=='list')return;             // 책자·장부 화면에서는 목록으로 되돌리지 않음
+  if(view!=='list'&&view!=='home')return;   // 장부·증빙서류입력·설정 화면에서는 화면을 바꾸지 않음
   const a=document.activeElement;
   if(a&&(a.id==='q'||(a.id&&a.id.indexOf('pf')===0)))return;
-  renderList();
+  if(view==='home')renderHome();else renderList();
 }
 (async function init(){
   Folder.load();
@@ -4839,7 +5049,7 @@ function applySnapshot(arr){
     $('#app').innerHTML='<div class="wrap"><div class="card"><h2>Firebase를 불러오지 못했습니다</h2><div class="err">'+esc(e.message||e)+'</div><p class="muted">네트워크에서 gstatic.com 접속이 막혀 있거나 설정값이 잘못되었을 수 있습니다.</p></div></div>';
     return;
   }
-  if(!Store.cloud){docs=await DB.all();resetBp();renderList()}
+  if(!Store.cloud){docs=await DB.all();resetBp();renderHome()}
 })();
 })();
 </script>
