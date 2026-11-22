@@ -179,6 +179,7 @@ label{display:block;font-size:12px;color:var(--sub);margin:0 0 3px}
 .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:9px;background:#e8f0fe;color:#1a4fa0;margin-right:4px}.tag.in{background:#e6f4ea;color:#17692d}
 .bk table{width:100%;border-collapse:collapse;font-size:12.5px;margin:8px 0}.bk th,.bk td{border-bottom:1px solid #e3e7ec;padding:4px 6px;text-align:left}.bk td.r{text-align:right}.bk .scroll{max-height:46vh;overflow:auto}
 
+.page.bkpg{padding:15mm}
 .bkp .bk-ref{font-size:8.5pt;margin-bottom:2mm}
 .bkp .bk-title{text-align:center;font-size:17pt;letter-spacing:1.5mm;text-decoration:underline;margin:1mm 0 5mm}
 .bkp .bk-sub{text-align:center;font-size:10pt;margin:-2mm 0 4mm}
@@ -3912,10 +3913,10 @@ function fundCol(t){
   }
   if(/보조/.test(t.fund))return 0;if(/후원/.test(t.fund))return 2;return 1;
 }
-const chunk=(a,n)=>{const r=[];for(let i=0;i<a.length;i+=n)r.push(a.slice(i,i+n));return r.length?r:[[]]};
-function bkPage(ref,title,sub,inner){return '<section class="page"><div class="pg-in bkp"><div class="bk-ref">'+ref+'</div><div class="bk-title">'+title+'</div>'+(sub?'<div class="bk-sub">'+sub+'</div>':'')+inner+'</div></section>'}
+const chunk=(a,n)=>[a];   /* 쪽 나누기는 fitPages 가 실제 높이를 재서 합니다 */
+function bkPage(ref,title,sub,inner){return '<section class="page bkpg"><div class="pg-in bkp"><div class="bk-ref">'+ref+'</div><div class="bk-title">'+title+'</div>'+(sub?'<div class="bk-sub">'+sub+'</div>':'')+inner+'</div></section>'}
 const lk=(t,scr)=>scr?'<a class="lk" data-doc="'+t.docId+'">'+esc(t.no)+'</a>':esc(t.no);
-const memoCell=(t,scr)=>esc(t.memo||'')+' ('+lk(t,scr)+')';
+const memoCell=(t,scr)=>scr?'<a class="lk" data-doc="'+t.docId+'" title="클릭하면 결의서를 팝업으로 봅니다">'+esc(t.memo||'')+' ('+esc(t.no)+')</a>':esc(t.memo||'')+' ('+esc(t.no)+')';
 const hlc=(t,scr)=>scr&&BK.hl&&t.docId===BK.hl?' class="hl"':'';
 const cg=a=>'<colgroup>'+a.map(w=>'<col style="width:'+w+'%">').join('')+'</colgroup>';
 const emptyPage=(ref,title,sub,y)=>bkPage(ref,title,sub,'<div class="empty">'+esc(y)+'년도에 해당하는 거래가 없습니다.</div>');
@@ -4093,7 +4094,51 @@ function bkExp(year,scr,all){
     return bkTable('[별지 제22호서식]','('+esc(n.replace(/비$/,''))+')비 용 명 세 서',year+'년도',['구 분','내 역','금 액','산 출 내 역','비 고'],[18,32,14,18,18],rows,scr,2,all);
   }).join('');
 }
-function bkPages(tab,year,scr,all){
+function fitPages(html){
+  if(!html||html.indexOf('table class="bk"')<0)return html;
+  const host=document.createElement('div');host.style.cssText='position:fixed;left:-10000px;top:0;visibility:hidden;width:210mm';
+  host.innerHTML=html;document.body.appendChild(host);
+  const out=[];
+  try{
+    [...host.querySelectorAll('section.page')].forEach(sec=>{
+      const inner=sec.querySelector('.pg-in'),tb=sec.querySelector('table.bk');
+      const over=(t,i)=>t.getBoundingClientRect().bottom>i.getBoundingClientRect().bottom+0.5;
+      if(!tb||!over(tb,inner)){out.push(sec.outerHTML);return}
+      const rows=[...tb.rows];let hn=0;while(hn<rows.length&&rows[hn].querySelector('th'))hn++;
+      const body=rows.slice(hn);body.forEach(r=>r.remove());
+      let page=sec,pt=tb,pi=inner,n=0;
+      body.forEach(r=>{
+        pt.tBodies[0].appendChild(r);n++;
+        if(n>1&&over(pt,pi)){
+          r.remove();out.push(page.outerHTML);
+          page=sec.cloneNode(true);[...page.querySelector('table.bk').rows].slice(hn).forEach(x=>x.remove());
+          host.appendChild(page);pt=page.querySelector('table.bk');pi=page.querySelector('.pg-in');
+          pt.tBodies[0].appendChild(r);n=1;
+        }
+      });
+      out.push(page.outerHTML);
+    });
+  }finally{host.remove()}
+  return out.join('');
+}
+function bkPopup(id){
+  const d=docs.find(x=>x.id===id);if(!d)return;
+  Store.hydrate(d).then(()=>{
+    const m=document.createElement('div');m.className='modal';
+    m.innerHTML='<div class="box" style="max-width:900px;width:96vw;height:92vh;display:flex;flex-direction:column;text-align:left;padding:12px">'
+      +'<div class="row" style="align-items:center;margin-bottom:8px"><b style="flex:1">'+esc(d.no)+' · '+esc(d.biz||'')+'</b><button class="sm pri" id="bpOpen">결의서 열기(수정)</button><button class="sm" id="bpNo">닫기 ✕</button></div>'
+      +'<div id="bpBox" style="flex:1;overflow:auto;background:#6b7280;padding:10px"></div></div>';
+    document.body.appendChild(m);
+    const bx=m.querySelector('#bpBox');bx.innerHTML=pagesHTML(d);scalePages(bx);
+    const close=()=>{m.remove();document.removeEventListener('keydown',esc_)};
+    const esc_=e=>{if(e.key==='Escape')close()};document.addEventListener('keydown',esc_);
+    m.onclick=e=>{if(e.target===m)close()};
+    m.querySelector('#bpNo').onclick=close;
+    m.querySelector('#bpOpen').onclick=()=>{close();BK.from=true;openDoc(id)};
+  });
+}
+function bkPages(tab,year,scr,all){return fitPages(bkPages0(tab,year,scr,all))}
+function bkPages0(tab,year,scr,all){
   switch(tab){
     case 'led':return bkLedger(year,scr,all);case 'cash':return bkCash(year,scr,all);
     case 'rin':return bkSettle('in',year,scr,all);case 'rout':return bkSettle('out',year,scr,all);
@@ -4177,7 +4222,7 @@ function renderBooks(){
   const ka=$('#kAcct');if(ka)ka.onchange=()=>{BK.acct=ka.value;renderBooks()};
   const ke=$('#kExp');if(ke)ke.onchange=()=>{BK.exp=ke.value;renderBooks()};
   const ko=$('#kOpen');if(ko)ko.onchange=()=>{S.open=S.open||{};S.open[BK.year]=num(ko.value);saveS();Store.saveProfile();renderBooks()};
-  box.onclick=e=>{const a=e.target.closest('a.lk');if(a){BK.from=true;openDoc(a.dataset.doc)}};
+  box.onclick=e=>{const a=e.target.closest('a.lk');if(a){e.preventDefault();bkPopup(a.dataset.doc)}};
   box.querySelectorAll('input.bud').forEach(i=>i.onchange=()=>{
     S.bud=S.bud||{};const y=BK.year;S.bud[y]=S.bud[y]||{};const o=S.bud[y][i.dataset.k]=S.bud[y][i.dataset.k]||{};
     o[i.dataset.f]=i.dataset.f==='n'?i.value:(num(i.value)||'');
