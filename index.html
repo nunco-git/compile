@@ -378,6 +378,7 @@ label{font-weight:500;color:#475467}
 .bl2 tr.hl td{background:var(--pri-soft)!important}.bl2 tr.hl td:first-child{box-shadow:inset 3px 0 0 var(--pri)}
 .bl2 .rb .rbo{border-radius:999px}
 #blDrop{border:2px dashed #c7d2fe!important;border-radius:14px!important;background:#f8faff!important;transition:.15s}#blDrop:hover{border-color:var(--pri)!important;background:var(--pri-soft)!important}
+.acpw{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}.acpw input{width:210px}.acpw .muted{flex:1 1 260px;font-size:12.5px}
 </style>
 </head>
 <body>
@@ -2853,7 +2854,7 @@ const Store={
   profRef(){return this.fb.doc(this.db,'users',this.user.uid,'meta','profile')},
   async loadProfile(){
     if(!this.cloud||!this.user)return;
-    try{const x=await this.fb.getDoc(this.profRef());if(x.exists()){Object.assign(S,x.data());fixAcs();saveS()}}catch(e){console.error(e)}
+    try{const x=await this.fb.getDoc(this.profRef());if(x.exists()){Object.assign(S,x.data());fixAcs(true);saveS()}}catch(e){console.error(e)}
   },
   saveProfile(){
     if(!this.cloud||!this.user)return Promise.resolve();
@@ -2992,19 +2993,21 @@ const S_DEF=()=>({facility:'',approvals:['담당자','시설장'],acctType:'시�
   year:String(new Date().getFullYear()),acctDiv:'시설회계',facKind:'facility',manager:'',head:'',fType:'facility',saved:false,autoOcr:true,bud:{},open:{}});
 let S=S_DEF();
 function skey(){return 'jichul_set'+(Store.cloud&&Store.user?'_'+Store.user.uid:'')}
-const AC_F=['acctDiv','facKind','fType','acctType'];
-function fixAcs(){
+const AC_F=['acctDiv','facKind','fType','acctType'],AC_S=['stampHead','stampMgr'];
+function fixAcs(pull){
   if(!Array.isArray(S.acs)||!S.acs.length){S.acs=[{id:'a1',name:S.acctDiv||'시설회계',acctDiv:S.acctDiv,facKind:S.facKind,fType:S.fType,acctType:S.acctType||'',open:S.open||{},bud:S.bud||{}}];S.ac='a1'}
   if(!S.acs.some(a=>a.id===S.ac))S.ac=S.acs[0].id;
+  if(!S.acs.some(a=>'stampHead' in a)&&(S.stampHead||S.stampMgr))S.acs.forEach(a=>{a.stampHead=S.stampHead||'';a.stampMgr=S.stampMgr||''});
+  const c=S.acs.find(a=>a.id===S.ac);if(pull&&c&&('stampHead' in c))AC_S.forEach(k=>{S[k]=c[k]||''});
 }
-function syncOut(){fixAcs();const a=S.acs.find(x=>x.id===S.ac);if(!a)return;AC_F.forEach(k=>{a[k]=S[k]});a.open=S.open||{};a.bud=S.bud||{}}
-function loadS(){S=S_DEF();try{Object.assign(S,JSON.parse(localStorage.getItem(skey())||'{}'))}catch(e){}fixAcs()}
+function syncOut(){fixAcs();const a=S.acs.find(x=>x.id===S.ac);if(!a)return;AC_F.forEach(k=>{a[k]=S[k]});AC_S.forEach(k=>{a[k]=S[k]||''});a.open=S.open||{};a.bud=S.bud||{}}
+function loadS(){S=S_DEF();try{Object.assign(S,JSON.parse(localStorage.getItem(skey())||'{}'))}catch(e){}fixAcs(true)}
 function saveS(){try{syncOut();localStorage.setItem(skey(),JSON.stringify(S))}catch(e){}}
 const inAc=d=>(d.ac||S.acs[0].id)===S.ac;
 const adocs=()=>docs.filter(inAc);
 function switchAc(id){
   syncOut();const a=S.acs.find(x=>x.id===id);if(!a)return;
-  AC_F.forEach(k=>{if(a[k]!==undefined)S[k]=a[k]});S.open=a.open||{};S.bud=a.bud||{};S.ac=id;
+  AC_F.forEach(k=>{if(a[k]!==undefined)S[k]=a[k]});AC_S.forEach(k=>{S[k]=a[k]||''});S.open=a.open||{};S.bud=a.bud||{};S.ac=id;
   sel.clear();saveS();Store.saveProfile();if(Store.cloud&&Store.user&&Store.fb){Store.initYears();Store.watch()}refreshView();
 }
 function acYears(){const a=S.acs.find(x=>x.id===S.ac)||{};return (a.yrs||[]).slice().sort().reverse()}
@@ -3066,7 +3069,9 @@ function acHTML(){
    +'<select id="acSel" style="width:auto;min-width:160px">'+S.acs.map(a=>'<option value="'+a.id+'"'+(a.id===S.ac?' selected':'')+'>'+esc(a.name)+'</option>').join('')+'</select>'
    +'<button class="sm" id="acEdit">수정</button><button class="sm" id="acRen">이름 변경</button><button class="sm pri" id="acNew">＋ 새 회계목록</button><button class="sm dng" id="acDel">삭제</button>'
    +'<span class="muted" style="font-size:12.5px">'+esc(S.acctDiv||'')+(S.acctDiv==='시설회계'?' · '+(FAC_KIND[S.facKind]||''):'')+' · 결의서 '+acStats()+'</span>'
-   +'<span style="margin-left:auto;display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">'+folderInline()+'</span></div></div>';
+   +'<span style="margin-left:auto;display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">'+folderInline()+'</span></div>'
+   +(S.shared?(()=>{const a=S.acs.find(x=>x.id===S.ac)||{};return '<div class="acpw"><b>🔒 이 회계목록 비밀번호</b><span class="muted">'+(a.pwh?'설정됨 — 이 회계목록을 열 때마다(새로 접속할 때) 비밀번호를 묻습니다':'설정하면 이 회계목록은 비밀번호를 아는 사람만 열 수 있습니다')+'</span>'
+     +'<input type="password" id="acPwNew" autocomplete="new-password" placeholder="'+(a.pwh?'새 비밀번호로 변경 (4자 이상)':'비밀번호 (4자 이상)')+'"><button class="sm pri" id="acPwSet">'+(a.pwh?'변경':'설정')+'</button>'+(a.pwh?'<button class="sm dng" id="acPwClr">해제</button>':'')+'</div>'})():'')+'</div>';
 }
 function bindAc(){
   const sl=$('#acSel');if(!sl)return;
@@ -3084,6 +3089,11 @@ function bindAc(){
     const id=S.ac;S.acs=S.acs.filter(x=>x.id!==id);switchAc(S.acs[0].id);toast('삭제했습니다');
   };
   $('#acEdit').onclick=()=>acEditDlg();
+  const ps=$('#acPwSet');if(ps){
+    const a=S.acs.find(x=>x.id===S.ac);
+    ps.onclick=async()=>{const v=$('#acPwNew').value;if(v.length<4){toast('비밀번호는 4자 이상으로 입력하세요');return}await setAcPw(a,v);saveS();await Store.saveProfile();toast('"'+a.name+'" 회계목록 비밀번호를 설정했습니다');refreshView()};
+    const pc=$('#acPwClr');if(pc)pc.onclick=async()=>{if(!confirm('"'+a.name+'" 회계목록의 비밀번호를 해제할까요?'))return;await setAcPw(a,'');saveS();await Store.saveProfile();toast('비밀번호를 해제했습니다');refreshView()};
+  }
 }
 loadS();
 const FAC_KIND={facility:'일반 시설(노인·장애인 등)',welfare:'복지관 등',childcare:'어린이집',ltc:'노인장기요양기관'};
@@ -3295,23 +3305,47 @@ function normDoc(d){
 const EO=()=>!!S.expOnly;
 const UNL=new Set();
 async function sha(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
-const locked=d=>!!(d&&d.pwh)&&!UNL.has(d.id);
+const acOf=d=>S.acs.find(x=>x.id===(d.ac||S.acs[0].id));
+const acLock=a=>a&&a.pwh&&!UNL.has('ac:'+a.id)?a:null;
+function lockOf(d){
+  if(!d)return null;
+  if(d.pwh&&!UNL.has(d.id))return{h:d.pwh,s:d.pws,k:d.id,lb:'결의서 '+d.no+'은(는) 비밀번호로 보호되어 있습니다.',ph:'결의서 비밀번호'};
+  const a=acLock(acOf(d));
+  if(a)return{h:a.pwh,s:a.pws,k:'ac:'+a.id,lb:'회계목록 "'+a.name+'"은(는) 비밀번호로 보호되어 있습니다.',ph:'회계목록 비밀번호'};
+  return null;
+}
+const locked=d=>!!lockOf(d);
 async function setPw(d,pw){if(!pw){delete d.pwh;delete d.pws;return}d.pws=uid();d.pwh=await sha(d.pws+pw)}
-function askPw(d){
+async function setAcPw(a,pw){if(!pw){delete a.pwh;delete a.pws;UNL.delete('ac:'+a.id);return}a.pws=uid();a.pwh=await sha(a.pws+pw);UNL.add('ac:'+a.id)}
+function askLock(L){
   return new Promise(res=>{
     const m=document.createElement('div');m.className='modal';document.body.appendChild(m);
-    m.innerHTML='<div class="box" style="max-width:360px;width:92vw;text-align:left;padding:16px"><h3 style="margin-top:0">🔒 비밀번호 확인</h3><div class="muted" style="margin-bottom:8px">결의서 '+esc(d.no)+'은(는) 비밀번호로 보호되어 있습니다.</div>'
-     +'<input type="password" id="pwIn" autocomplete="off" placeholder="결의서 비밀번호"><div class="err" id="pwErr"></div>'
+    m.innerHTML='<div class="box" style="max-width:360px;width:92vw;text-align:left;padding:16px"><h3 style="margin-top:0">🔒 비밀번호 확인</h3><div class="muted" style="margin-bottom:8px">'+esc(L.lb)+'</div>'
+     +'<input type="password" id="pwIn" autocomplete="off" placeholder="'+esc(L.ph)+'"><div class="err" id="pwErr"></div>'
      +'<div class="row" style="justify-content:flex-end;gap:8px;margin-top:10px"><button id="pwNo">취소</button><button class="pri" id="pwOk">확인</button></div></div>';
     const done=v=>{m.remove();res(v)};
     const ok=async()=>{const v=m.querySelector('#pwIn').value;if(!v){m.querySelector('#pwErr').textContent='비밀번호를 입력하세요';return}
-      if(await sha((d.pws||'')+v)===d.pwh){UNL.add(d.id);done(true)}else{m.querySelector('#pwErr').textContent='비밀번호가 맞지 않습니다';m.querySelector('#pwIn').select()}};
+      if(await sha((L.s||'')+v)===L.h){UNL.add(L.k);done(true)}else{m.querySelector('#pwErr').textContent='비밀번호가 맞지 않습니다';m.querySelector('#pwIn').select()}};
     m.querySelector('#pwOk').onclick=ok;m.querySelector('#pwNo').onclick=()=>done(false);
     m.querySelector('#pwIn').onkeydown=e=>{if(e.key==='Enter')ok();if(e.key==='Escape')done(false)};
     m.querySelector('#pwIn').focus();
   });
 }
-const needUnlock=async d=>locked(d)?await askPw(d):true;
+async function askPw(d){const L=lockOf(d);if(!L)return true;return askLock(L)}
+const needUnlock=async d=>{while(locked(d)){if(!(await askPw(d)))return false}return true};
+/* 회계목록 비밀번호: 잠긴 회계목록은 화면 전체를 막고 비밀번호를 먼저 받습니다 */
+function acGate(fn){
+  const a=acLock(S.acs.find(x=>x.id===S.ac));if(!a)return false;
+  $('#app').innerHTML='<div class="topbar"><h1>🔒 '+esc(a.name)+'</h1></div><div class="wrap" style="max-width:460px"><div class="card" style="text-align:center;padding:26px 22px">'
+   +'<div style="font-size:38px">🔒</div><h2 style="margin:6px 0">비밀번호로 보호된 회계목록입니다</h2>'
+   +'<div class="muted" style="margin-bottom:14px">이 회계목록의 비밀번호를 입력하면 결의서·장부를 볼 수 있습니다.<br>다른 회계목록은 왼쪽 위 <b>회계목록</b> 선택에서 바꿀 수 있습니다.</div>'
+   +'<input type="password" id="acPw" autocomplete="off" placeholder="회계목록 비밀번호" style="text-align:center"><div class="err" id="acPwErr"></div>'
+   +'<button class="pri" id="acPwOk" style="margin-top:10px;width:100%">열기</button></div></div>';
+  const go=async()=>{const v=$('#acPw').value;if(!v){$('#acPwErr').textContent='비밀번호를 입력하세요';return}
+    if(await sha((a.pws||'')+v)===a.pwh){UNL.add('ac:'+a.id);fn?fn():refreshView()}else{$('#acPwErr').textContent='비밀번호가 맞지 않습니다';$('#acPw').select()}};
+  $('#acPwOk').onclick=go;$('#acPw').onkeydown=e=>{if(e.key==='Enter')go()};$('#acPw').focus();
+  return true;
+}
 function lockedPage(d){return '<section class="page"><div class="pg-in"><div class="blankbody" style="flex-direction:column;gap:14px"><span class="hint" style="font-size:20px">🔒 비밀번호로 보호된 결의서입니다</span><span class="hint">결의서 번호 '+esc(d.no)+'</span><button data-unlock="'+esc(d.id)+'" style="font-size:16px;padding:8px 18px">잠금 해제</button></div></div></section>'}
 document.addEventListener('click',async e=>{
   const b=e.target.closest&&e.target.closest('[data-unlock]');if(!b)return;
@@ -3857,10 +3891,10 @@ function profHTML(){
    +'<section class="pf-sec"><div class="pf-h"><em>2</em><div><b>'+LB.fac+' · '+LB.mgr+'</b><small>결의서 하단과 결재란에 표시됩니다</small></div></div>'
    +fld('pfFac','🏢',LB.fac+'명',S.facility,SUB?'예) ○○단체':'예) ○○실버홈','wide')
    +'<div class="pf-g2">'+fld('pfHead','👤',LB.head,S.head,'성명')+fld('pfMgr','🧑‍💼',LB.mgr,S.manager,'성명')+fld('pfSp','💳','지출원',S.spender,'성명')+fld('pfWr','✍️','작성(작성자)',S.writer,'성명')+'</div></section>'
-   +'<section class="pf-sec"><div class="pf-h"><em>3</em><div><b>결재인(도장·서명)</b><small>결재란의 해당 칸('+(SUB?'대표자·원장 / 담당·작성':'시설장·원장 / 담당·작성')+')에 자동으로 들어가 인쇄됩니다. 배경이 흰색인 사진도 괜찮습니다.</small></div></div>'
+   +'<section class="pf-sec"><div class="pf-h"><em>3</em><div><b>결재인(도장·서명)</b><small>회계목록별로 따로 저장됩니다 — 지금은 <b>'+esc((S.acs.find(x=>x.id===S.ac)||{}).name||'')+'</b>의 결재인입니다. 결재란의 해당 칸('+(SUB?'대표자·원장 / 담당·작성':'시설장·원장 / 담당·작성')+')에 자동으로 들어가 인쇄됩니다. 배경이 흰색인 사진도 괜찮습니다.</small></div></div>'
    +'<div class="pf-g2">'+stBox('Head',(SUB?'대표자':'시설장')+' 결재인',S.stampHead)+stBox('Mgr',(SUB?'보조사업담당자':'담당자')+' 결재인',S.stampMgr)+'</div></section>'
    +'<section class="pf-sec"><div class="pf-h"><em>4</em><div><b>사용 방식</b><small>필요한 경우에만 켜세요</small></div></div>'
-   +sw('pfShared','공동사용','보조사업자 등이 한 계정을 함께 쓸 때, 결의서를 작성하면서 결의서별 비밀번호를 설정할 수 있습니다.',S.shared)
+   +sw('pfShared','공동사용','보조사업자 등이 한 계정을 함께 쓸 때, 회계목록마다 비밀번호를 걸고 결재인도 회계목록별로 따로 등록합니다. (결의서별 비밀번호도 결의서 작성 화면에서 걸 수 있습니다)',S.shared)
    +sw('pfExpOnly','지출결의서만 사용','총계정원장·현금출납부 등 장부와 수입·여입결의서, 통장 거래내역 가져오기를 숨기고 지출결의서만 씁니다.',S.expOnly)+'</section>'
    +'<div class="pf-bar"><button class="pri" id="pfSave">저장</button>'+(S.saved?'<button id="pfCancel">취소</button>':'')+'<span class="muted">'+(Store.cloud?'로그인한 계정에 저장됩니다':'이 기기에 저장됩니다')+'</span></div></div>';
 }
@@ -3896,6 +3930,7 @@ function perYears(){const a=new Set(adocs().map(d=>String(d.year||(d.date||'').s
 function perDocs(){return adocs().filter(d=>String(d.year||(d.date||'').slice(0,4))===PP.y&&(!PP.m||+(d.date||'').slice(5,7)===+PP.m)&&(!PP.k||dk(d)===PP.k)).sort(byNo)}
 function renderList(){
   cur=null;view='list';
+  if(acGate(renderList))return;
   const list=adocs().filter(d=>{
     if(!filter)return true;const q=filter.toLowerCase();
     return [d.no,d.biz,d.writer,...(d.items||[]).map(i=>i.acct+i.memo+i.vendor)].join(' ').toLowerCase().includes(q);
@@ -3955,6 +3990,7 @@ function refreshView(){if(view==='settings')renderSettings();else if(view==='hom
 const shortWon=n=>{n=Math.round(n);const a=Math.abs(n);if(a>=1e8)return (n/1e8).toFixed(1).replace(/\.0$/,'')+'억';if(a>=1e4)return Math.round(n/1e4).toLocaleString('ko-KR')+'만';return n.toLocaleString('ko-KR')};
 function renderSettings(){
   cur=null;view='settings';
+  if(acGate(renderSettings))return;
   $('#app').innerHTML='<div class="topbar"><h1>⚙ 설정</h1><span class="stat">'+(Store.cloud?'☁ 로그인한 계정에 저장됩니다':'📱 이 기기에만 저장되는 모드입니다')+'</span></div>'
    +'<div class="wrap" style="max-width:980px">'+acHTML()+profHTML()
    +'<div class="card"><h2>데이터 백업 <small>사진까지 포함한 JSON 파일</small></h2><div class="row"><button id="bExp">백업 저장</button><button id="bImp">백업 불러오기</button></div>'
@@ -3964,6 +4000,7 @@ function renderSettings(){
 }
 function renderHome(){
   cur=null;view='home';
+  if(acGate(renderHome))return;
   const ys=perYears();HM.y=HM.y||String(S.year||ys[0]||new Date().getFullYear());if(!ys.includes(HM.y))ys.unshift(HM.y);
   if(Store.cloud&&Store.years&&S.qv&&!Store.years.has(HM.y)){Store.ensureYears([HM.y]).then(()=>{if(view==='home')renderHome()})}
   const all=adocs(),D=all.filter(d=>String(d.year||(d.date||'').slice(0,4))===HM.y),T=booksTx(HM.y,true);
@@ -4093,6 +4130,7 @@ function f(label,key,opts){opts=opts||{};
   return '<div><label>'+label+'</label><input data-k="'+key+'" '+(opts.type?'type="'+opts.type+'" ':'')+'value="'+esc(key.startsWith('d.')?cur.d[key.slice(2)]:cur[key])+'"></div>';
 }
 function renderEdit(){
+  if(acGate(renderEdit))return;
   const d=normDoc(cur);
   $('#app').innerHTML=
    '<div class="topbar"><button id="bList">← 목록</button>'+(BK.from?'<button id="bBack">← 장부</button>':'')+'<h1 id="ttl">'+esc(d.no)+'</h1><span class="stat" id="stat">'+(Store.cloud?'☁ 자동 저장됨':'자동 저장됨')+'</span><button class="pri" id="bPrint">🖨 인쇄 / PDF</button></div>'
@@ -4790,6 +4828,7 @@ function scalePages(box){
 }
 function renderBooks(){
   cur=null;view='books';
+  if(acGate(renderBooks))return;
   const years=bkYears();if(!years.includes(BK.year))years.unshift(BK.year);
   const T=booksTx(BK.year);
   const months=[...new Set(T.map(t=>+t.date.slice(5,7)))].sort((a,b)=>a-b);
@@ -5153,6 +5192,7 @@ function openBooklet(){
   renderBooklet();
 }
 async function renderBooklet(){
+  if(acGate(renderBooklet))return;
   cur=null;view='booklet';const sy=window.scrollY;const ys=perYears();if(ys.indexOf(BL.y)<0)ys.unshift(BL.y);
   const L=blDocs();if(!BL.inc)BL.inc=new Set(L.map(d=>d.id));
   const inc=L.filter(d=>BL.inc.has(d.id));
@@ -5297,7 +5337,7 @@ function applySnapshot(arr){
   try{
     await Store.init(u=>{
       if(u){loadS();Store.loadProfile().then(async()=>{await Store.migrate();Store.subscribe(applySnapshot,e=>{console.error(e);toast('데이터를 불러오지 못했습니다: '+(e.code||e.message),5000)})})}
-      else{docs=[];sel.clear();loadS();renderLogin()}
+      else{docs=[];sel.clear();cur=null;view='home';loadS();renderLogin()}
     });
   }catch(e){
     console.error(e);
