@@ -3533,7 +3533,7 @@ function pagesHTML(d){
   const sum='<div class="box sum"><div class="lb">금액</div><div class="vl">'+(total?'금'+fmt(total)+'원(금'+toKorean(total)+'원)':'')+'</div></div>';
   const rem='<div class="box remark"><div class="lb">비고</div><div class="vl">'
     +(d.remark?'<div class="rtext">'+esc(d.remark)+'</div>':'')
-    +(inl.length?'<div class="evgrid evbox" style="'+gridStyle(Math.max(inl.length,d.evMax||4),d.inN!=null?d.inLay:d.evLay)+'">'+evPad(inl,d.evMax||4,anyCap)+'</div>':'')
+    +((inl.length||d.inPv)?'<div class="evgrid evbox" style="'+gridStyle(Math.max(inl.length,d.evMax||4),d.inN!=null?d.inLay:d.evLay)+'">'+evPad(inl,d.evMax||4,anyCap)+'</div>':'')
     +'</div></div>';
   const foot='<div class="foot"><span>시설명 : '+esc(d.facility)+'</span><span>'+(d.head?'시설장 : '+esc(d.head)+'　':'')+(d.manager?'담당자 : '+esc(d.manager):'')+'</span></div>';
   const ttl=d.kind==='in'?'수입결의서':'지출결의서';
@@ -3553,6 +3553,7 @@ function pagesHTML(d){
   const per=d.nextPer||4;
   const chunks=[];const pc=Math.max(1,capOf(per,d));for(let i=0;i<rest.length;i+=pc)chunks.push(rest.slice(i,i+pc));
   while(chunks.length<(+d.evPgMin||0))chunks.push([]);
+  if(d.pgPv&&!chunks.length)chunks.push([]);
   chunks.forEach((c,idx)=>{
     const cols=per<=2?1:2;
     out+='<section class="page"><div class="pg-in"><div class="evhead"><span><b>증빙자료</b>　'+esc(d.biz)+'</span><span>결의서 번호 '+esc(d.no)+'　('+(idx+1)+'/'+chunks.length+')</span></div>'
@@ -4947,7 +4948,13 @@ async function renderBooklet(){
     const list=(BL.all?L.filter(d=>BL.inc.has(d.id)):L.filter(d=>d.id===BL.sel)).map(d=>docs.find(x=>x.id===d.id)||d);
     if(!list.length){box.innerHTML='<div class="empty" style="color:#fff">미리볼 결의서가 없습니다</div>';return}
     for(const d of list)await Store.hydrate(d);
-    box.innerHTML=list.map(d=>screenPages(d)).join('');
+    const live=d=>{
+      if(!BL.live||d.id!==BL.sel||(!BL.inPer&&!(BL.pgPer&&BL.pgLive)))return d;
+      const c=Object.assign({},d);
+      if(BL.inPer){c.evMode='inline';c.evMax=parseInt(BL.inPer,10);c.inLay=BL.inPer==='2h'?'h':'v';c.inPv=1;if(c.inN==null)c.inN=d.evMode==='inline'?Math.min((d.photos||[]).length,capOf(d.evMax||4,d)):0}
+      if(BL.pgPer&&BL.pgLive){c.nextPer=parseInt(BL.pgPer,10);c.evLay=BL.pgPer==='2h'?'h':'v';c.pgPv=1}
+      return c};
+    box.innerHTML=list.map(d=>screenPages(live(d))).join('');
     const W=793.7,H=1122.5,s=Math.min(1,Math.max(200,box.clientWidth-24)/W);
     [...box.querySelectorAll('.page')].forEach(pg=>{const w=document.createElement('div');w.className='pvwrap';w.style.width=W*s+'px';w.style.height=H*s+'px';pg.parentNode.insertBefore(w,pg);w.appendChild(pg);pg.style.transform='scale('+s+')'});
     box.onclick=async e=>{
@@ -4978,7 +4985,7 @@ async function renderBooklet(){
   $('#blPrint').onclick=()=>{if(!inc.length){toast('인쇄할 결의서를 체크하세요');return}printDocs(inc)};
   window.scrollTo(0,sy);
   /* 증빙 파일 추가 */
-  ['blIn','blPg'].forEach(nm=>document.querySelectorAll('input[name='+nm+']').forEach(r=>r.onchange=()=>{document.querySelectorAll('input[name='+nm+']').forEach(o=>{if(o!==r)o.checked=false});BL[nm==='blIn'?'inPer':'pgPer']=r.checked?r.value:''}));
+  ['blIn','blPg'].forEach(nm=>document.querySelectorAll('input[name='+nm+']').forEach(r=>r.onchange=()=>{document.querySelectorAll('input[name='+nm+']').forEach(o=>{if(o!==r)o.checked=false});BL[nm==='blIn'?'inPer':'pgPer']=r.checked?r.value:'';BL.live=true;if(nm==='blPg')BL.pgLive=true;drawBl()}));
   const getSel=()=>docs.find(d=>d.id===BL.sel);
   const dz=$('#blDrop'),fi=$('#blFile');
   const put=async files=>{
