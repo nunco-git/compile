@@ -3032,7 +3032,7 @@ function fTypeOfS(p){return p.acctDiv==='법인회계'?'corp':p.acctDiv==='수�
 function acctShort(p){return String(p.acctDiv||'').replace(/회계$/,'')}
 function profSummary(p){
   const a=[p.year+'년도',p.acctDiv+(p.acctDiv==='시설회계'?' · '+(FAC_KIND[p.facKind]||''):''),p.facility];
-  if(p.head)a.push('시설장 '+p.head);if(p.manager)a.push('담당자 '+p.manager);if(p.spender)a.push('지출원 '+p.spender);if(p.writer)a.push('작성 '+p.writer);if(p.shared)a.push('공동사용');
+  if(p.head)a.push('시설장 '+p.head);if(p.manager)a.push('담당자 '+p.manager);if(p.spender)a.push('지출원 '+p.spender);if(p.writer)a.push('작성 '+p.writer);if(p.shared)a.push('공동사용');if(p.expOnly)a.push('지출결의서만 사용');
   return a.filter(Boolean).join(' · ');
 }
 /* ---------- 데이터 ---------- */
@@ -3210,6 +3210,7 @@ function normDoc(d){
   if(d.acctAuto===undefined)d.acctAuto=!d.mok;
   return d;
 }
+const EO=()=>!!S.expOnly;
 const UNL=new Set();
 async function sha(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
 const locked=d=>!!(d&&d.pwh)&&!UNL.has(d.id);
@@ -3734,6 +3735,7 @@ function profHTML(){
    +'<div class="grid g2" style="margin-top:10px"><div style="grid-column:1/-1">'+inp('pfFac','시설명',S.facility,'예) ○○실버홈')+'</div>'
    +inp('pfHead','시설장',S.head)+inp('pfMgr','담당자',S.manager)+inp('pfSp','지출원',S.spender)+inp('pfWr','작성(작성자)',S.writer)+'</div>'
    +'<label class="rbo" style="margin-top:10px;display:flex;gap:6px;align-items:center"><input type="checkbox" id="pfShared" style="width:auto"'+(S.shared?' checked':'')+'> <b>공동사용</b> <span class="muted">(보조사업자 등이 한 계정을 함께 쓸 때: 결의서를 작성할 때 결의서별 비밀번호를 설정할 수 있습니다)</span></label>'
+   +'<label class="rbo" style="margin-top:6px;display:flex;gap:6px;align-items:center"><input type="checkbox" id="pfExpOnly" style="width:auto"'+(S.expOnly?' checked':'')+'> <b>지출결의서만 사용</b> <span class="muted">(총계정원장·현금출납부 등 장부와 수입·여입결의서, 통장 거래내역 가져오기를 숨기고 지출결의서만 씁니다)</span></label>'
    +'<div class="grid g2" style="margin-top:10px">'+stampBox('Head','시설장 결재인(도장·서명)',S.stampHead)+stampBox('Mgr','담당자 결재인(도장·서명)',S.stampMgr)+'</div>'
    +'<div class="muted">결재인 이미지는 결의서 결재란의 해당 칸(시설장·원장 / 담당·작성)에 자동으로 들어가 인쇄됩니다. 배경이 흰색인 사진도 괜찮습니다.</div>'
    +'<div class="muted" style="margin-top:8px">'+(S.acctDiv==='수익사업회계'?'수익사업회계는 별표 과목표가 없어 관·항·목을 직접 입력합니다.':'회계구분·시설종류에 맞는 별표 예산과목으로 적요가 자동 분류됩니다.')+'</div>'
@@ -3764,6 +3766,7 @@ function readProf(){
   Object.keys(m).forEach(k=>{const v=g(m[k]);if(v!==null)S[k]=v});
   const kd=$('#pfKind');if(kd&&!kd.disabled)S.facKind=kd.value;
   const sh=$('#pfShared');if(sh)S.shared=sh.checked;
+  const eo=$('#pfExpOnly');if(eo)S.expOnly=eo.checked;
 }
 let PP={y:'',m:'',k:''};
 function perYears(){const a=new Set(adocs().map(d=>String(d.year||(d.date||'').slice(0,4))).filter(Boolean));acYears().forEach(y=>a.add(y));if(S.year)a.add(String(S.year));const r=[...a].sort().reverse();if(!PP.y)PP.y=r[0]||String(new Date().getFullYear());return r}
@@ -3775,13 +3778,13 @@ function renderList(){
     return [d.no,d.biz,d.writer,...(d.items||[]).map(i=>i.acct+i.memo+i.vendor)].join(' ').toLowerCase().includes(q);
   }).sort((a,b)=>byNo(b,a));
   $('#app').innerHTML=
-   '<div class="topbar"><h1>결의서 목록</h1><button class="pri" id="bNew">＋ 새 결의서</button><button id="bBank">🏦 통장 거래내역 가져오기</button></div>'
+   '<div class="topbar"><h1>결의서 목록</h1><button class="pri" id="bNew">＋ 새 결의서</button>'+(EO()?'':'<button id="bBank">🏦 통장 거래내역 가져오기</button>')+'</div>'
   +'<div class="wrap">'
   +'<div class="card"><div class="toolbar">'
   +'<div class="fx" style="max-width:300px"><label>검색</label><input id="q" value="'+esc(filter)+'" placeholder="번호·사업·적요·거래처"></div>'
   +'<div style="width:96px"><label>출력 연도</label><select id="pY">'+perYears().map(y=>'<option'+(y===PP.y?' selected':'')+'>'+y+'</option>').join('')+'</select></div>'
   +'<div style="width:96px"><label>출력 월</label><select id="pM"><option value="">연간</option>'+[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>'<option value="'+m+'"'+(+PP.m===m?' selected':'')+'>'+m+'월</option>').join('')+'</select></div>'
-  +'<button id="bPerOut">🖨 지출결의서 (<span id="nOut">0</span>)</button><button id="bPerIn">🖨 수입결의서 (<span id="nIn">0</span>)</button><button id="bPerRe">🖨 여입결의서 (<span id="nRe">0</span>)</button><button id="bPerAll">🖨 전체 (<span id="nAll">0</span>)</button>'
+  +'<button id="bPerOut">🖨 지출결의서 (<span id="nOut">0</span>)</button>'+(EO()?'':'<button id="bPerIn">🖨 수입결의서 (<span id="nIn">0</span>)</button><button id="bPerRe">🖨 여입결의서 (<span id="nRe">0</span>)</button>')+'<button id="bPerAll">🖨 전체 (<span id="nAll">0</span>)</button>'
   +'<button id="bPrintSel">🖨 선택 인쇄 (<span id="selN">'+sel.size+'</span>)</button>'
   +(adocs().some(isMixed)?'<button id="bSplitAll" style="background:#fffaeb;border-color:#fedf89">⚠ 목이 섞인 결의서 나누기</button>':'')
   +'</div></div>'
@@ -3795,12 +3798,12 @@ function renderList(){
   $('#q').oninput=e=>{filter=e.target.value;const p=e.target.selectionStart;renderList();const q=$('#q');q.focus();q.setSelectionRange(p,p)};
   $('#bNew').onclick=()=>{if(!S.saved){toast('먼저 설정에서 시설 정보를 입력하고 저장하세요');renderSettings();return}const d=newDoc();docs.push(d);Store.save(d);openDoc(d.id)};
   $('#bPrintSel').onclick=()=>{if(!sel.size){toast('인쇄할 결의서를 체크하세요');return}printDocs(docs.filter(d=>sel.has(d.id)).sort(byNo))};
-  $('#bBank').onclick=()=>{if(!S.saved){toast('먼저 설정에서 시설 정보를 입력하고 저장하세요');renderSettings();return}$('#fileBank').click()};
+  const bbk=$('#bBank');if(bbk)bbk.onclick=()=>{if(!S.saved){toast('먼저 설정에서 시설 정보를 입력하고 저장하세요');renderSettings();return}$('#fileBank').click()};
   const sa=$('#bSplitAll');if(sa)sa.onclick=async()=>{if(!confirm('목이 서로 다른 항목이 섞인 결의서를 목별로 나눕니다. (증빙 사진은 원래 결의서에 남습니다) 진행할까요?'))return;let n=0;for(const d of adocs().filter(isMixed).slice())n+=await splitByMok(d);toast('결의서 '+n+'건을 새로 만들었습니다',4000);renderList()};
-  const upd=()=>{PP.y=$('#pY').value;PP.m=$('#pM').value;PP.k='';const L=perDocs();$('#nAll').textContent=L.length;$('#nOut').textContent=L.filter(d=>dk(d)==='out').length;$('#nIn').textContent=L.filter(d=>dk(d)==='in').length;$('#nRe').textContent=L.filter(d=>dk(d)==='re').length};
+  const upd=()=>{PP.y=$('#pY').value;PP.m=$('#pM').value;PP.k='';const L=perDocs();$('#nAll').textContent=L.length;$('#nOut').textContent=L.filter(d=>dk(d)==='out').length;if($('#nIn'))$('#nIn').textContent=L.filter(d=>dk(d)==='in').length;if($('#nRe'))$('#nRe').textContent=L.filter(d=>dk(d)==='re').length};
   $('#pY').onchange=async()=>{const y=$('#pY').value;if(Store.cloud&&Store.years&&!Store.years.has(y)){toast('불러오는 중…',4000);await Store.ensureYears([y]);PP.y=y;renderList();return}upd()};$('#pM').onchange=upd;upd();
   const perPrint=k=>{PP.k=k;const L=perDocs().filter(d=>!k||dk(d)===k);PP.k='';if(!L.length){toast('해당 기간의 '+(k?KL[k]:'결의서')+'가 없습니다');return}printDocs(L)};
-  $('#bPerOut').onclick=()=>perPrint('out');$('#bPerIn').onclick=()=>perPrint('in');$('#bPerRe').onclick=()=>perPrint('re');$('#bPerAll').onclick=()=>perPrint('');
+  $('#bPerOut').onclick=()=>perPrint('out');if($('#bPerIn'))$('#bPerIn').onclick=()=>perPrint('in');if($('#bPerRe'))$('#bPerRe').onclick=()=>perPrint('re');$('#bPerAll').onclick=()=>perPrint('');
   const all=$('#all');if(all){all.checked=list.length&&list.every(d=>sel.has(d.id));all.onchange=()=>{list.forEach(d=>all.checked?sel.add(d.id):sel.delete(d.id));renderList()}}
   document.querySelectorAll('.dl tr.item').forEach(tr=>{
     const id=tr.dataset.id;
@@ -3853,34 +3856,34 @@ function renderHome(){
   for(let m=0;m<12;m++){
     const x=pl+cw*m+cw*.16,bw=cw*.32;
     const a=mi[m],b=mo[m];
-    svg+='<rect x="'+x+'" y="'+yy(a)+'" width="'+bw+'" height="'+(H-pb-yy(a))+'" rx="3" fill="#12b886"><title>'+(m+1)+'월 세입 '+fmt(a)+'원</title></rect>'
+    svg+=(EO()?'':'<rect x="'+x+'" y="'+yy(a)+'" width="'+bw+'" height="'+(H-pb-yy(a))+'" rx="3" fill="#12b886"><title>'+(m+1)+'월 세입 '+fmt(a)+'원</title></rect>')
        +'<rect x="'+(x+bw+2)+'" y="'+yy(b)+'" width="'+bw+'" height="'+(H-pb-yy(b))+'" rx="3" fill="#f59f00"><title>'+(m+1)+'월 세출 '+fmt(b)+'원</title></rect>'
        +'<text x="'+(pl+cw*m+cw/2)+'" y="'+(H-8)+'" text-anchor="middle" font-size="11" fill="#667085">'+(m+1)+'월</text>';
   }
   svg+='</svg>';
   const cats=Object.entries(cat).sort((a,b)=>b[1]-a[1]).slice(0,6),cm=cats.length?cats[0][1]:1;
   const todos=[];
-  if(miss)todos.push('<div class="todo w"><div><b>과목이 정해지지 않은 항목 '+miss+'건</b>총계정원장에서 같은 적요를 한꺼번에 계정과목으로 지정할 수 있습니다.</div><button class="sm go" data-go="ledger">정리하기</button></div>');
+  if(miss&&!EO())todos.push('<div class="todo w"><div><b>과목이 정해지지 않은 항목 '+miss+'건</b>총계정원장에서 같은 적요를 한꺼번에 계정과목으로 지정할 수 있습니다.</div><button class="sm go" data-go="ledger">정리하기</button></div>');
   if(noPh)todos.push('<div class="todo w"><div><b>증빙 파일이 없는 지출결의서 '+noPh+'건</b>증빙서류입력에서 파일을 끌어다 놓으세요.</div><button class="sm go" data-go="booklet">입력하기</button></div>');
-  if(mixed)todos.push('<div class="todo d"><div><b>목이 섞인 결의서 '+mixed+'건</b>목별로 결의서를 나누어야 합니다.</div><button class="sm go" data-go="list">확인</button></div>');
+  if(mixed&&!EO())todos.push('<div class="todo d"><div><b>목이 섞인 결의서 '+mixed+'건</b>목별로 결의서를 나누어야 합니다.</div><button class="sm go" data-go="list">확인</button></div>');
   if(S.saved&&!S.stampHead&&!S.stampMgr)todos.push('<div class="todo i"><div><b>결재인(도장) 이미지를 등록해 보세요</b>담당자·시설장 도장이 결의서에 자동으로 찍힙니다.</div><button class="sm go" data-go="settings">등록</button></div>');
   if(!todos.length)todos.push('<div class="todo ok"><div><b>처리할 알림이 없습니다</b>모든 결의서가 정리되어 있습니다.</div></div>');
   const recent=all.slice().sort((a,b)=>(b.updated||0)-(a.updated||0)).slice(0,6);
   const start=(!S.saved||!all.length)?'<div class="card start" style="margin-bottom:14px"><h2>시작하기 <small>3단계로 첫 결의서를 만들어 보세요</small></h2><div class="steps">'
     +'<div class="step"><b><em>1</em>시설 정보 입력</b><p>시설명·시설장·담당자와 회계구분을 정합니다.</p><button class="sm '+(S.saved?'':'pri')+'" data-go="settings">'+(S.saved?'✓ 완료 · 수정':'설정으로 이동')+'</button></div>'
-    +'<div class="step"><b><em>2</em>통장 거래내역 가져오기</b><p>엑셀을 올리면 결의서와 관·항·목이 자동으로 만들어집니다.</p><button class="sm" data-go="bank">엑셀 올리기</button></div>'
+    +(EO()?'<div class="step"><b><em>2</em>지출결의서 작성</b><p>사업명·적요·금액을 입력하면 구분·관·항·목이 자동으로 채워집니다.</p><button class="sm" data-go="new">새 결의서</button></div>':'<div class="step"><b><em>2</em>통장 거래내역 가져오기</b><p>엑셀을 올리면 결의서와 관·항·목이 자동으로 만들어집니다.</p><button class="sm" data-go="bank">엑셀 올리기</button></div>')
     +'<div class="step"><b><em>3</em>증빙 첨부 · 출력</b><p>증빙서류를 끌어다 놓고 책자로 한 번에 인쇄합니다.</p><button class="sm" data-go="booklet">증빙서류입력</button></div></div></div>':'';
   $('#app').innerHTML='<div class="wrap">'
    +'<div class="hm-head"><div><h2>'+esc(S.facility||'지출결의서')+'</h2><p>'+esc(ac.name)+(S.acctDiv?' · '+esc(S.acctDiv):'')+' · '+now.getFullYear()+'년 '+(now.getMonth()+1)+'월 '+now.getDate()+'일 ('+wd+')</p></div><div class="sp"></div>'
    +'<div><label>회계연도</label><select id="hmY">'+ys.map(y=>'<option'+(y===HM.y?' selected':'')+'>'+y+'</option>').join('')+'</select></div></div>'
-   +'<div class="hm-act"><button class="pri" data-go="new">＋ 새 결의서</button><button data-go="bank">🏦 통장 거래내역 가져오기</button><button data-go="books">📒 장부·명세서</button><button data-go="booklet">📖 증빙서류입력</button></div>'
+   +'<div class="hm-act"><button class="pri" data-go="new">＋ 새 결의서</button>'+(EO()?'':'<button data-go="bank">🏦 통장 거래내역 가져오기</button><button data-go="books">📒 장부·명세서</button>')+'<button data-go="booklet">📖 증빙서류입력</button></div>'
    +start
    +'<div class="kpis">'
-   +'<div class="kpi in"><span class="ic">⬇</span><div class="lb">세입 합계</div><div class="vl">'+fmt(inS)+'<small>원</small></div><div class="sb">수입결의서 '+nIn+'건</div></div>'
+   +(EO()?'':'<div class="kpi in"><span class="ic">⬇</span><div class="lb">세입 합계</div><div class="vl">'+fmt(inS)+'<small>원</small></div><div class="sb">수입결의서 '+nIn+'건</div></div>')
    +'<div class="kpi out"><span class="ic">⬆</span><div class="lb">세출 합계</div><div class="vl">'+fmt(outS)+'<small>원</small></div><div class="sb">지출결의서 '+nOut+'건</div></div>'
-   +'<div class="kpi bal"><span class="ic">💰</span><div class="lb">현재 잔액</div><div class="vl">'+(bal<0?'-':'')+fmt(Math.abs(bal))+'<small>원</small></div><div class="sb">기초잔액 '+fmt(open)+'원 포함</div></div>'
+   +(EO()?'':'<div class="kpi bal"><span class="ic">💰</span><div class="lb">현재 잔액</div><div class="vl">'+(bal<0?'-':'')+fmt(Math.abs(bal))+'<small>원</small></div><div class="sb">기초잔액 '+fmt(open)+'원 포함</div></div>')
    +'<div class="kpi cnt"><span class="ic">🧾</span><div class="lb">결의서</div><div class="vl">'+D.length+'<small>건</small></div><div class="sb">증빙 '+D.reduce((a,d)=>a+(d.photos||[]).length,0)+'장 첨부</div></div></div>'
-   +'<div class="hm-grid"><div class="card"><h2>월별 세입·세출 <span class="legend"><span><i style="background:#12b886"></i>세입</span><span><i style="background:#f59f00"></i>세출</span></span></h2>'+(T.length?svg:'<div class="empty" style="border:0;padding:30px">'+esc(HM.y)+'년도 거래가 없습니다.</div>')+'</div>'
+   +'<div class="hm-grid"><div class="card"><h2>'+(EO()?'월별 세출':'월별 세입·세출')+' <span class="legend">'+(EO()?'':'<span><i style="background:#12b886"></i>세입</span>')+'<span><i style="background:#f59f00"></i>세출</span></span></h2>'+(T.length?svg:'<div class="empty" style="border:0;padding:30px">'+esc(HM.y)+'년도 거래가 없습니다.</div>')+'</div>'
    +'<div class="card"><h2>할 일 · 알림</h2>'+todos.join('')+'</div></div>'
    +'<div class="hm-grid2"><div class="card"><h2>세출 항목별 비중 <small>상위 6</small></h2><div class="bars">'
    +(cats.length?cats.map(c=>'<div class="r"><span class="nm" title="'+esc(c[0])+'">'+esc(c[0])+'</span><span class="tr"><i style="width:'+Math.max(2,Math.round(c[1]/cm*100))+'%"></i></span><span class="am">'+fmt(c[1])+'</span></div>').join(''):'<div class="muted">세출 내역이 없습니다.</div>')+'</div></div>'
@@ -3891,6 +3894,7 @@ function renderHome(){
   document.querySelectorAll('#app [data-open]').forEach(r=>r.onclick=()=>openDoc(r.dataset.open));
 }
 async function navGo(k){
+  if(EO()&&(k==='bank'||k==='books'||k==='ledger'))return;
   if(k==='bank'){if(!S.saved){toast('먼저 설정에서 시설 정보를 입력하고 저장하세요');renderSettings();return}$('#fileBank').click();return}
   await flushSave();
   if(k==='home')renderHome();
@@ -3913,8 +3917,8 @@ function renderSide(){
    +'<div class="sd-ac"><small>회계목록</small><select id="sdAc">'+S.acs.map(a=>'<option value="'+a.id+'"'+(a.id===S.ac?' selected':'')+'>'+esc(a.name)+'</option>').join('')+'</select></div>'
    +it('new','＋','새 결의서','sd-new')
    +it('home','🏠','대시보드')
-   +'<div class="sd-sec">결의서</div>'+it('list','📋','결의서 목록')+it('bank','🏦','통장 거래내역 가져오기')
-   +'<div class="sd-sec">장부 · 서류</div>'+it('books','📒','장부·명세서')+it('booklet','📖','증빙서류입력')
+   +'<div class="sd-sec">결의서</div>'+it('list','📋','결의서 목록')+(EO()?'':it('bank','🏦','통장 거래내역 가져오기'))
+   +'<div class="sd-sec">'+(EO()?'서류':'장부 · 서류')+'</div>'+(EO()?'':it('books','📒','장부·명세서'))+it('booklet','📖','증빙서류입력')
    +'<div class="sd-sec">관리</div>'+it('settings','⚙️','설정')
    +'<div class="sd-foot">'+(Store.cloud&&Store.user?'<div class="sd-user">'+esc(Store.user.email||Store.user.displayName||'')+'</div><button class="sd-item" id="sdOut" title="로그아웃"><i>↩</i><span>로그아웃</span></button>':'<div class="sd-user">이 기기에만 저장</div>')
    +'<button class="sd-item" id="sdCol" title="메뉴 접기/펴기"><i>◧</i><span>메뉴 접기</span></button></div>';
@@ -3923,7 +3927,7 @@ function renderSide(){
   const so=$('#sdOut');if(so)so.onclick=()=>Store.logout();
   $('#sdCol').onclick=()=>{if(localStorage.getItem('sidecol'))localStorage.removeItem('sidecol');else localStorage.setItem('sidecol','1');renderSide()};
   const bi=(k,ic,t,cls)=>'<button class="'+(act===k?'on':'')+(cls?' '+cls:'')+'" data-nav="'+k+'"><i>'+ic+'</i>'+t+'</button>';
-  bn.innerHTML=bi('home','🏠','홈')+bi('list','📋','목록')+bi('new','＋','새 결의서','nw')+bi('books','📒','장부')+bi('settings','⚙️','설정');
+  bn.innerHTML=bi('home','🏠','홈')+bi('list','📋','목록')+bi('new','＋','새 결의서','nw')+(EO()?bi('booklet','📖','증빙'):bi('books','📒','장부'))+bi('settings','⚙️','설정');
   bn.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>navGo(b.dataset.nav));
 }
 new MutationObserver(()=>renderSide()).observe($('#app'),{childList:true});
@@ -4067,7 +4071,7 @@ function renderGwa(){
   let h=acStatHTML(d,t)+'<div class="grid g2"><div><label>시설 종류</label><select id="fType"><option value="">선택하세요</option>'
     +ACC_TYPES.map(x=>'<option value="'+x.id+'"'+(d.fType===x.id?' selected':'')+'>'+esc(x.label)+'</option>').join('')
     +'<option value="custom"'+(d.fType==='custom'?' selected':'')+'>직접 입력</option></select></div>'
-    +'<div><label>구분</label><div class="radio" style="margin-top:7px"><label><input type="radio" name="kind" value="out"'+(dk(d)==='out'?' checked':'')+'> 세출 (지출결의서)</label>'
+    +'<div'+((EO()&&dk(d)==='out')?' style="display:none"':'')+'><label>구분</label><div class="radio" style="margin-top:7px"><label><input type="radio" name="kind" value="out"'+(dk(d)==='out'?' checked':'')+'> 세출 (지출결의서)</label>'
     +'<label><input type="radio" name="kind" value="in"'+(dk(d)==='in'?' checked':'')+'> 세입 (수입결의서)</label>'
     +'<label title="이미 지출한 건을 취소·반납할 때 사용"><input type="radio" name="kind" value="re"'+(dk(d)==='re'?' checked':'')+'> 여입 (여입결의서)</label></div></div></div>';
   if(t){
@@ -5018,7 +5022,7 @@ window.addEventListener('afterprint',()=>{$('#printRoot').innerHTML=''});
 /* ---------- 증빙서류입력(책자 출력) : 미리보기 + 증빙 빈 쪽 + 한 번에 인쇄 ---------- */
 let BL={y:'',m:'',kOut:true,kIn:true,kRe:true,inc:null,sel:'',all:false,inPer:'',pgPer:'4',orig:false};
 function blDocs(){
-  return adocs().filter(d=>String(d.year||(d.date||'').slice(0,4))===BL.y&&(!BL.m||+(d.date||'').slice(5,7)===+BL.m)&&(dk(d)==='re'?BL.kRe:dk(d)==='in'?BL.kIn:BL.kOut)).sort(byNo);
+  return adocs().filter(d=>String(d.year||(d.date||'').slice(0,4))===BL.y&&(!BL.m||+(d.date||'').slice(5,7)===+BL.m)&&(EO()?dk(d)==='out':(dk(d)==='re'?BL.kRe:dk(d)==='in'?BL.kIn:BL.kOut))).sort(byNo);
 }
 const pgCount=h=>(h.match(/<section class="page"/g)||[]).length;
 function openBooklet(){
@@ -5087,6 +5091,7 @@ async function renderBooklet(){
   };
   upd();drawBl();
   $('#blBack').onclick=()=>renderList();
+  if(EO()){['blKo','blKi','blKr'].forEach(i=>{const e=$('#'+i);if(e&&e.closest('label'))e.closest('label').style.display='none'});const rv=$('#blRev');if(rv)rv.style.display='none'}
   $('#blY').onchange=async e=>{BL.y=e.target.value;BL.inc=null;BL.sel='';await Store.ensureYears([BL.y]);renderBooklet()};
   $('#blM').onchange=e=>{BL.m=e.target.value;BL.inc=null;BL.sel='';renderBooklet()};
   $('#blKo').onchange=e=>{BL.kOut=e.target.checked;BL.inc=null;BL.sel='';renderBooklet()};
