@@ -2787,7 +2787,10 @@ const Store={
       else throw e;
     }
   },
-  async logout(){this.unsubscribe();this.cache.clear();await this.fb.signOut(this.auth)},
+  async loginEmail(em,pw){await this.fb.signInWithEmailAndPassword(this.auth,em,pw)},
+  async signupEmail(em,pw){await this.fb.createUserWithEmailAndPassword(this.auth,em,pw)},
+  async resetEmail(em){await this.fb.sendPasswordResetEmail(this.auth,em)},
+  async logout(){this.unsubscribe();this.cache.clear();UNL.clear();await this.fb.signOut(this.auth)},
   profRef(){return this.fb.doc(this.db,'users',this.user.uid,'meta','profile')},
   async loadProfile(){
     if(!this.cloud||!this.user)return;
@@ -3029,7 +3032,7 @@ function fTypeOfS(p){return p.acctDiv==='법인회계'?'corp':p.acctDiv==='수�
 function acctShort(p){return String(p.acctDiv||'').replace(/회계$/,'')}
 function profSummary(p){
   const a=[p.year+'년도',p.acctDiv+(p.acctDiv==='시설회계'?' · '+(FAC_KIND[p.facKind]||''):''),p.facility];
-  if(p.head)a.push('시설장 '+p.head);if(p.manager)a.push('담당자 '+p.manager);if(p.spender)a.push('지출원 '+p.spender);if(p.writer)a.push('작성 '+p.writer);
+  if(p.head)a.push('시설장 '+p.head);if(p.manager)a.push('담당자 '+p.manager);if(p.spender)a.push('지출원 '+p.spender);if(p.writer)a.push('작성 '+p.writer);if(p.shared)a.push('공동사용');
   return a.filter(Boolean).join(' · ');
 }
 /* ---------- 데이터 ---------- */
@@ -3207,9 +3210,34 @@ function normDoc(d){
   if(d.acctAuto===undefined)d.acctAuto=!d.mok;
   return d;
 }
+const UNL=new Set();
+async function sha(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+const locked=d=>!!(d&&d.pwh)&&!UNL.has(d.id);
+async function setPw(d,pw){if(!pw){delete d.pwh;delete d.pws;return}d.pws=uid();d.pwh=await sha(d.pws+pw)}
+function askPw(d){
+  return new Promise(res=>{
+    const m=document.createElement('div');m.className='modal';document.body.appendChild(m);
+    m.innerHTML='<div class="box" style="max-width:360px;width:92vw;text-align:left;padding:16px"><h3 style="margin-top:0">🔒 비밀번호 확인</h3><div class="muted" style="margin-bottom:8px">결의서 '+esc(d.no)+'은(는) 비밀번호로 보호되어 있습니다.</div>'
+     +'<input type="password" id="pwIn" autocomplete="off" placeholder="결의서 비밀번호"><div class="err" id="pwErr"></div>'
+     +'<div class="row" style="justify-content:flex-end;gap:8px;margin-top:10px"><button id="pwNo">취소</button><button class="pri" id="pwOk">확인</button></div></div>';
+    const done=v=>{m.remove();res(v)};
+    const ok=async()=>{const v=m.querySelector('#pwIn').value;if(!v){m.querySelector('#pwErr').textContent='비밀번호를 입력하세요';return}
+      if(await sha((d.pws||'')+v)===d.pwh){UNL.add(d.id);done(true)}else{m.querySelector('#pwErr').textContent='비밀번호가 맞지 않습니다';m.querySelector('#pwIn').select()}};
+    m.querySelector('#pwOk').onclick=ok;m.querySelector('#pwNo').onclick=()=>done(false);
+    m.querySelector('#pwIn').onkeydown=e=>{if(e.key==='Enter')ok();if(e.key==='Escape')done(false)};
+    m.querySelector('#pwIn').focus();
+  });
+}
+const needUnlock=async d=>locked(d)?await askPw(d):true;
+function lockedPage(d){return '<section class="page"><div class="pg-in"><div class="blankbody" style="flex-direction:column;gap:14px"><span class="hint" style="font-size:20px">🔒 비밀번호로 보호된 결의서입니다</span><span class="hint">결의서 번호 '+esc(d.no)+'</span><button data-unlock="'+esc(d.id)+'" style="font-size:16px;padding:8px 18px">잠금 해제</button></div></div></section>'}
+document.addEventListener('click',async e=>{
+  const b=e.target.closest&&e.target.closest('[data-unlock]');if(!b)return;
+  const d=docs.find(x=>x.id===b.dataset.unlock);if(!d||!(await askPw(d)))return;
+  if(view==='booklet')renderBooklet();else if(view==='books')renderBooks&&renderBooks();else refreshView();
+});
 const dk=d=>d.kind==='in'?(d.re?'re':'in'):'out';
 const KL={out:'지출결의서',in:'수입결의서',re:'여입결의서'};
-const kTag=d=>d.kind==='in'?'<span class="tag in">'+(d.re?'여입':'수입')+'</span>':'';
+const kTag=d=>(d.kind==='in'?'<span class="tag in">'+(d.re?'여입':'수입')+'</span>':'')+(d.pwh?'<span title="비밀번호 설정됨">🔒</span>':'');
 function accList(d){const t=ACC_TYPES.find(x=>x.id===d.fType);return t?t[d.kind==='in'?'in':'out']:null}
 function applyAcct(d){
   const list=accList(d);if(!list)return;
@@ -3509,6 +3537,7 @@ let useTh=false;
 function screenPages(d){useTh=true;try{return pagesHTML(d)}finally{useTh=false}}
 function evCell(p,any){return '<div class="ev">'+'<span class="rotbtns"><button data-rot="l" data-pid="'+esc(p.id||'')+'" title="왼쪽으로 회전">↺</button><button data-rot="r" data-pid="'+esc(p.id||'')+'" title="오른쪽으로 회전">↻</button></span>'+(any?'<div class="cap">'+esc(p.cap||'')+'&nbsp;</div>':'')+'<div class="iw"><img src="'+((useTh&&p.th)||p.data||'')+'" alt="" decoding="async"></div></div>'}
 function pagesHTML(d){
+  if(locked(d))return lockedPage(d);
   const rows=(d.items||[]).filter(filled);
   const total=sumOf(d);
   const photos=d.photos||[];
@@ -3644,15 +3673,39 @@ window.addEventListener('pagehide',flushNow);document.addEventListener('visibili
 async function flushSave(){clearTimeout(saveT);if(cur)await Store.save(cur)}
 
 /* ---------- 로그인 화면 ---------- */
+function authMsg(e){
+  const c=e&&e.code||'';
+  const M={'auth/invalid-credential':'이메일 또는 비밀번호가 맞지 않습니다.','auth/wrong-password':'이메일 또는 비밀번호가 맞지 않습니다.','auth/user-not-found':'이메일 또는 비밀번호가 맞지 않습니다.',
+   'auth/invalid-email':'이메일 형식이 올바르지 않습니다.','auth/email-already-in-use':'이미 가입된 이메일입니다. 로그인해 주세요.','auth/weak-password':'비밀번호는 6자 이상으로 입력하세요.',
+   'auth/missing-password':'비밀번호를 입력하세요.','auth/too-many-requests':'시도가 너무 많습니다. 잠시 후 다시 시도하세요.','auth/network-request-failed':'네트워크 연결을 확인하세요.',
+   'auth/operation-not-allowed':'Firebase 콘솔 > Authentication > 로그인 방법에서 "이메일/비밀번호"를 사용 설정하세요.','auth/unauthorized-domain':'Firebase 콘솔 > Authentication > 설정 > 승인된 도메인에 이 사이트 주소를 추가하세요.'};
+  return M[c]||('로그인 실패: '+(c||(e&&e.message)||''));
+}
 function renderLogin(msg){
   cur=null;
   $('#app').innerHTML='<div class="topbar"><h1>📋 지출결의서 · 증빙 촬영</h1></div>'
-   +'<div class="wrap"><div class="card login"><h2 style="justify-content:center">Google 계정으로 로그인</h2>'
-   +'<p>폰에서 촬영해 올린 증빙이 같은 계정으로 로그인한 PC에서도 보입니다.<br>각자 자기 계정의 자료만 볼 수 있습니다.</p>'
-   +'<button class="pri" id="bLogin">Google로 로그인</button><div class="err" id="lerr">'+esc(msg||'')+'</div></div></div>';
+   +'<div class="wrap"><div class="card login"><h2 style="justify-content:center" id="lgT">로그인</h2>'
+   +'<p>폰에서 촬영해 올린 증빙이 같은 계정으로 로그인한 PC에서도 보입니다.<br>같은 계정을 여럿이 함께 쓸 때는 시설 정보에서 "공동사용"을 켜고 결의서마다 비밀번호를 설정하세요.</p>'
+   +'<div style="text-align:left;max-width:340px;margin:0 auto"><label>이메일</label><input id="lgE" type="email" autocomplete="username" placeholder="name@example.com">'
+   +'<label style="margin-top:8px">비밀번호</label><input id="lgP" type="password" autocomplete="current-password" placeholder="6자 이상">'
+   +'<div class="row" style="margin-top:10px;gap:8px"><button class="pri" id="lgGo" style="flex:1">로그인</button><button id="lgMode">회원가입</button></div>'
+   +'<div style="margin-top:8px;text-align:center"><button class="sm" id="lgReset">비밀번호 재설정 메일 받기</button></div></div>'
+   +'<div style="margin:14px 0 6px" class="muted">또는</div><button id="bLogin">Google로 로그인</button><div class="err" id="lerr">'+esc(msg||'')+'</div></div></div>';
+  let signup=false;
+  const err=t=>{$('#lerr').textContent=t||''};
+  $('#lgMode').onclick=()=>{signup=!signup;$('#lgT').textContent=signup?'회원가입':'로그인';$('#lgGo').textContent=signup?'가입하고 시작':'로그인';$('#lgMode').textContent=signup?'로그인으로':'회원가입';$('#lgP').autocomplete=signup?'new-password':'current-password';err('')};
+  const go=async()=>{
+    const em=$('#lgE').value.trim(),pw=$('#lgP').value;
+    if(!em||!pw){err('이메일과 비밀번호를 입력하세요.');return}
+    err('');$('#lgGo').disabled=true;
+    try{signup?await Store.signupEmail(em,pw):await Store.loginEmail(em,pw)}catch(e){err(authMsg(e));$('#lgGo').disabled=false}
+  };
+  $('#lgGo').onclick=go;$('#lgP').onkeydown=e=>{if(e.key==='Enter')go()};
+  $('#lgReset').onclick=async()=>{const em=$('#lgE').value.trim();if(!em){err('위에 이메일을 입력한 뒤 눌러 주세요.');return}
+    try{await Store.resetEmail(em);err('');toast('비밀번호 재설정 메일을 보냈습니다. 메일함(스팸함 포함)을 확인하세요',5000)}catch(e){err(authMsg(e))}};
   $('#bLogin').onclick=async()=>{
-    $('#lerr').textContent='';
-    try{await Store.login()}catch(e){$('#lerr').textContent='로그인 실패: '+(e.code||e.message)+(e.code==='auth/unauthorized-domain'?'\nFirebase 콘솔 > Authentication > 설정 > 승인된 도메인에 이 사이트 주소를 추가하세요.':'')}
+    err('');
+    try{await Store.login()}catch(e){err(authMsg(e))}
   };
 }
 
@@ -3680,6 +3733,7 @@ function profHTML(){
    +'<div><label>시설종류</label><select id="pfKind"'+(corp?' disabled':'')+'>'+Object.keys(FAC_KIND).map(k=>'<option value="'+k+'"'+(S.facKind===k?' selected':'')+'>'+FAC_KIND[k]+'</option>').join('')+'</select></div></div>'
    +'<div class="grid g2" style="margin-top:10px"><div style="grid-column:1/-1">'+inp('pfFac','시설명',S.facility,'예) ○○실버홈')+'</div>'
    +inp('pfHead','시설장',S.head)+inp('pfMgr','담당자',S.manager)+inp('pfSp','지출원',S.spender)+inp('pfWr','작성(작성자)',S.writer)+'</div>'
+   +'<label class="rbo" style="margin-top:10px;display:flex;gap:6px;align-items:center"><input type="checkbox" id="pfShared" style="width:auto"'+(S.shared?' checked':'')+'> <b>공동사용</b> <span class="muted">(보조사업자 등이 한 계정을 함께 쓸 때: 결의서를 작성할 때 결의서별 비밀번호를 설정할 수 있습니다)</span></label>'
    +'<div class="grid g2" style="margin-top:10px">'+stampBox('Head','시설장 결재인(도장·서명)',S.stampHead)+stampBox('Mgr','담당자 결재인(도장·서명)',S.stampMgr)+'</div>'
    +'<div class="muted">결재인 이미지는 결의서 결재란의 해당 칸(시설장·원장 / 담당·작성)에 자동으로 들어가 인쇄됩니다. 배경이 흰색인 사진도 괜찮습니다.</div>'
    +'<div class="muted" style="margin-top:8px">'+(S.acctDiv==='수익사업회계'?'수익사업회계는 별표 과목표가 없어 관·항·목을 직접 입력합니다.':'회계구분·시설종류에 맞는 별표 예산과목으로 적요가 자동 분류됩니다.')+'</div>'
@@ -3709,6 +3763,7 @@ function readProf(){
   const m={year:'pfYear',facility:'pfFac',head:'pfHead',manager:'pfMgr',spender:'pfSp',writer:'pfWr'};
   Object.keys(m).forEach(k=>{const v=g(m[k]);if(v!==null)S[k]=v});
   const kd=$('#pfKind');if(kd&&!kd.disabled)S.facKind=kd.value;
+  const sh=$('#pfShared');if(sh)S.shared=sh.checked;
 }
 let PP={y:'',m:'',k:''};
 function perYears(){const a=new Set(adocs().map(d=>String(d.year||(d.date||'').slice(0,4))).filter(Boolean));acYears().forEach(y=>a.add(y));if(S.year)a.add(String(S.year));const r=[...a].sort().reverse();if(!PP.y)PP.y=r[0]||String(new Date().getFullYear());return r}
@@ -3732,7 +3787,7 @@ function renderList(){
   +'</div></div>'
   +(list.length?'<table class="dl"><tr><th style="width:30px"><input type="checkbox" id="all" style="width:auto"></th><th>번호</th><th>사업 / 적요</th><th style="text-align:right">금액</th><th>증빙</th><th></th></tr>'
     +list.map(d=>{const f1=(d.items||[]).find(filled);return '<tr class="item" data-id="'+d.id+'"><td data-stop><input type="checkbox" class="ck" style="width:auto" '+(sel.has(d.id)?'checked':'')+'></td>'
-      +'<td>'+kTag(d)+esc(d.no)+(isMixed(d)?' <span class="tag" style="background:#f5c518;color:#000" title="목이 서로 다른 항목이 섞여 있습니다">목 혼재</span>':'')+'</td><td>'+esc(d.biz)+(f1?' <span class="muted">'+esc(f1.memo||f1.acct)+'</span>':'')+'</td>'
+      +'<td>'+kTag(d)+esc(d.no)+(isMixed(d)?' <span class="tag" style="background:#f5c518;color:#000" title="목이 서로 다른 항목이 섞여 있습니다">목 혼재</span>':'')+'</td><td>'+(locked(d)?'<span class="muted">비밀번호로 보호된 결의서</span>':esc(d.biz)+(f1?' <span class="muted">'+esc(f1.memo||f1.acct)+'</span>':''))+'</td>'
       +'<td class="r">'+fmt(sumOf(d))+'</td><td>'+(d.photos||[]).length+'장</td>'
       +'<td data-stop style="white-space:nowrap"><button class="sm bDup">복제</button> <button class="sm dng bDel">삭제</button></td></tr>'}).join('')+'</table>'
     :'<div class="empty">아직 결의서가 없습니다. <b>＋ 새 결의서</b>를 눌러 시작하세요.</div>')
@@ -3752,7 +3807,7 @@ function renderList(){
     tr.onclick=e=>{if(e.target.closest('[data-stop]'))return;openDoc(id)};
     tr.querySelector('.ck').onchange=e=>{e.target.checked?sel.add(id):sel.delete(id);$('#selN').textContent=sel.size};
     tr.querySelector('.bDup').onclick=async()=>{
-      const o=docs.find(d=>d.id===id);toast('복제 중…');await Store.hydrate(o);
+      const o=docs.find(d=>d.id===id);if(!(await needUnlock(o)))return;toast('복제 중…');await Store.hydrate(o);
       const c=clone(o);c.id=uid();c.no=autoNo(c.date);c.autoNo=true;c.updated=Date.now();
       let lost=0;
       for(const p of c.photos){p.id=uid();delete p.orig;delete p.sp;delete p.op;delete p.on;delete p.v;try{p.data=await localData(p.data)}catch(e){p.data='';lost++}}
@@ -3760,8 +3815,9 @@ function renderList(){
       docs.push(c);for(const p of c.photos)await Store.savePhoto(c,p);await Store.save(c);renderList();toast('복제했습니다');
     };
     tr.querySelector('.bDel').onclick=async()=>{
+      const o=docs.find(d=>d.id===id);if(!(await needUnlock(o)))return;
       if(!confirm('이 결의서와 증빙 사진을 삭제할까요?'))return;
-      const o=docs.find(d=>d.id===id);docs=docs.filter(d=>d.id!==id);sel.delete(id);renderList();await Store.remove(o);
+docs=docs.filter(d=>d.id!==id);sel.delete(id);renderList();await Store.remove(o);
     };
   });
 }
@@ -3899,6 +3955,7 @@ $('#fileImp').onchange=async e=>{
 /* ---------- 편집 화면 ---------- */
 async function openDoc(id){
   const d=docs.find(x=>x.id===id);if(!d)return;
+  if(!(await needUnlock(d)))return;
   if(Store.cloud&&(d.photos||[]).some(p=>!p.data)){toast('사진 불러오는 중…',8000)}
   await Store.hydrate(d);
   cur=d;tab='form';renderEdit();
@@ -3918,6 +3975,7 @@ function renderEdit(){
    +'<details class="more"><summary>이 결의서만 다르게 입력하기 (회계연도·회계구분·시설명·시설장·담당자)</summary><div class="grid g2" style="margin-top:8px">'
    +f('회계연도','year')+f('회계 구분','acctType')+'<div style="grid-column:1/-1"><label>시설명</label><input data-k="facility"></div>'+f('시설장','head')+f('담당자','manager')+'</div></details></div>'
 
+  +((S.shared||d.pwh)?'<div class="card" id="pwCard"><h2>🔒 결의서 비밀번호 <small>공동으로 쓰는 계정에서 이 결의서를 보호합니다</small></h2><div class="row" style="gap:8px;align-items:center"><input type="password" id="pwNew" autocomplete="new-password" placeholder="'+(d.pwh?'새 비밀번호로 변경':'이 결의서 비밀번호')+'" style="max-width:260px"><button class="sm pri" id="pwSet">'+(d.pwh?'변경':'설정')+'</button>'+(d.pwh?'<button class="sm" id="pwClr">해제</button><span class="muted">설정됨 · 열람·인쇄·복제·삭제 때 비밀번호를 묻습니다</span>':'<span class="muted">설정하지 않으면 계정에 로그인한 누구나 볼 수 있습니다</span>')+'</div></div>':'')
   +'<div class="card"><h2>지출 내역 <small>적요를 쓰면 구분·관·항·목이 자동으로 채워집니다. 입력한 줄만 인쇄되고, 빈 줄은 빠진 만큼 비고칸이 커집니다</small></h2><div id="items"></div>'
    +'<button id="iAdd">＋ 줄 추가</button><div class="muted" style="margin-top:8px">합계: <b id="sumv"></b></div></div>'
 
@@ -3952,6 +4010,12 @@ function renderEdit(){
   $('#bList').onclick=async()=>{await flushSave();const yy=cur&&cur.year;BK.from=false;if(yy)await Store.ensureYears([String(yy)]);renderList()};
   const bb=$('#bBack');if(bb)bb.onclick=async()=>{await flushSave();renderBooks()};
   $('#bFac').onclick=async()=>{await flushSave();profOpen=true;renderSettings()};
+  const pwS=$('#pwSet');if(pwS){
+    pwS.onclick=async()=>{const v=$('#pwNew').value;if(v.length<4){toast('비밀번호는 4자 이상으로 입력하세요');return}
+      if(d.pwh&&!UNL.has(d.id)){return}
+      await setPw(d,v);UNL.add(d.id);touch();await flushSave();toast('비밀번호를 설정했습니다');renderEdit()};
+    const pc=$('#pwClr');if(pc)pc.onclick=async()=>{if(!confirm('이 결의서의 비밀번호를 해제할까요?'))return;await setPw(d,'');touch();await flushSave();toast('비밀번호를 해제했습니다');renderEdit()};
+  }
   $('#autoOcr').onchange=e=>{S.autoOcr=e.target.checked;saveS()};
   $('#bPrint').onclick=()=>printDocs([cur]);
   $('#tF').onclick=()=>{tab='form';renderEdit()};$('#tP').onclick=()=>{tab='prev';renderEdit()};
@@ -4418,7 +4482,7 @@ function reverseDlg(o){
     if(!sel.length){toast('여입할 항목을 선택하세요');return}
     const date=q('#rvDate').value||today(),why=q('#rvWhy').value.trim();
     const c=clone(o);
-    c.id=uid();c.kind='in';c.re=true;c.reOf=o.id;c.date=date;c.year=date.slice(0,4);c.no=autoNo(date);c.autoNo=true;
+    c.id=uid();UNL.add(c.id);c.kind='in';c.re=true;c.reOf=o.id;c.date=date;c.year=date.slice(0,4);c.no=autoNo(date);c.autoNo=true;
     c.d={balui:date,gyeoljae:date,chulnap:date,deunggi:date};
     c.items=sel.map(i=>{const it=clone(o.items[i]);it.amt=String(num(m.querySelector('.rvA[data-i="'+i+'"]').value));if(!/^\[여입\]/.test(it.memo||''))it.memo='[여입] '+(it.memo||'');return it});
     c.biz='[여입] '+(o.biz||'');c.remark='지출결의서 '+o.no+' 취소'+(why?' ('+why+')':'');
@@ -4939,6 +5003,7 @@ window.addEventListener('resize',()=>{if(cur)refreshPv()});
 /* ---------- 인쇄 ---------- */
 async function printDocs(list){
   if(!list.length)return;
+  for(const d of list){if(locked(d)&&!(await askPw(d))){toast('비밀번호를 입력하지 않은 결의서('+d.no+')는 인쇄에서 잠금 표시로 나옵니다',4000)}}
   if(cur)await flushSave();
   if(Store.cloud&&list.some(d=>(d.photos||[]).some(p=>!p.data)))toast('사진 불러오는 중…',10000);
   for(const d of list)await Store.hydrate(d);
@@ -4977,7 +5042,7 @@ async function renderBooklet(){
    +'<div id="blDrop" style="margin-top:8px;border:2px dashed #8aa;border-radius:10px;padding:12px;text-align:center;background:#f8fbff">PDF·이미지를 여기에 <b>끌어다 놓으세요</b> (오른쪽 미리보기에 놓아도 됩니다)<br><button class="sm" id="blPick" style="margin-top:6px">파일 선택</button>'+(((L.find(d=>d.id===BL.sel)||{}).photos||[]).length?' <button class="sm dng" id="blClear" style="margin-top:6px">증빙 사진 모두 삭제</button>':'')+'<input type="file" id="blFile" accept="image/*,application/pdf" multiple style="display:none"></div>'
    +'<div class="muted" style="margin-top:4px;font-size:12px">선택한 칸 수대로 나누어 넣고, 비고칸이 차면 증빙서류 쪽으로 이어집니다.</div></div></div>'
    +'<div class="card" style="padding:0"><table class="dl"><tr><th style="width:30px"><input type="checkbox" id="blAll" style="width:auto"></th><th>번호</th><th>사업 / 적요</th><th style="text-align:right">금액</th></tr>'
-   +(L.length?L.map(d=>{const f1=(d.items||[]).find(filled);return '<tr class="item'+(d.id===BL.sel?' hl':'')+'" data-id="'+d.id+'"><td data-stop><input type="checkbox" class="bk1" style="width:auto"'+(BL.inc.has(d.id)?' checked':'')+'></td><td>'+kTag(d)+esc(d.no)+'</td><td>'+esc(d.biz)+(f1?' <span class="muted">'+esc(f1.memo||f1.acct)+'</span>':'')+'</td><td class="r">'+fmt(sumOf(d))+'</td></tr>'}).join(''):'<tr><td colspan="4" class="muted" style="padding:14px">해당 기간의 결의서가 없습니다.</td></tr>')
+   +(L.length?L.map(d=>{const f1=(d.items||[]).find(filled);return '<tr class="item'+(d.id===BL.sel?' hl':'')+'" data-id="'+d.id+'"><td data-stop><input type="checkbox" class="bk1" style="width:auto"'+(BL.inc.has(d.id)?' checked':'')+'></td><td>'+kTag(d)+esc(d.no)+'</td><td>'+(locked(d)?'<span class="muted">비밀번호로 보호된 결의서</span>':esc(d.biz)+(f1?' <span class="muted">'+esc(f1.memo||f1.acct)+'</span>':''))+'</td><td class="r">'+fmt(sumOf(d))+'</td></tr>'}).join(''):'<tr><td colspan="4" class="muted" style="padding:14px">해당 기간의 결의서가 없습니다.</td></tr>')
    +'</table></div></div>'
    +'<div style="position:sticky;top:62px;align-self:start"><div class="row" style="margin-bottom:6px"><b>미리보기</b><label style="display:inline-flex;gap:4px;align-items:center;margin-left:10px"><input type="checkbox" id="blWhole" style="width:auto"'+(BL.all?' checked':'')+'> 체크한 전체 책자 보기</label><label style="display:inline-flex;gap:4px;align-items:center;margin-left:10px"><input type="checkbox" id="blFit" style="width:auto"'+(BL.fit?' checked':'')+'> 체크한 적요 한 화면에 보기</label><button class="sm" id="blRev" style="margin-left:10px" title="선택한 지출결의서가 잘못되었을 때 취소하는 여입결의서를 작성합니다">↩ 여입결의서로 처리</button><span class="muted" id="blInfo"></span></div><div class="pvbox" id="blPv" style="position:static;max-height:calc(100vh - 130px)"></div></div>'
    +'</div></div>';
@@ -5027,13 +5092,13 @@ async function renderBooklet(){
   $('#blKo').onchange=e=>{BL.kOut=e.target.checked;BL.inc=null;BL.sel='';renderBooklet()};
   $('#blKr').onchange=e=>{BL.kRe=e.target.checked;BL.inc=null;BL.sel='';renderBooklet()};
   $('#blKi').onchange=e=>{BL.kIn=e.target.checked;BL.inc=null;BL.sel='';renderBooklet()};
-  $('#blRev').onclick=()=>{const d=getSel();if(!d){toast('왼쪽에서 지출결의서를 먼저 선택하세요');return}if(dk(d)!=='out'){toast('지출결의서를 선택하세요 (여입결의서는 지출결의서를 취소할 때 작성합니다)');return}reverseDlg(d)};
+  $('#blRev').onclick=async()=>{const d=getSel();if(!d){toast('왼쪽에서 지출결의서를 먼저 선택하세요');return}if(!(await needUnlock(d)))return;if(dk(d)!=='out'){toast('지출결의서를 선택하세요 (여입결의서는 지출결의서를 취소할 때 작성합니다)');return}reverseDlg(d)};
   $('#blFit').onchange=e=>{BL.fit=e.target.checked;drawBl()};
   $('#blWhole').onchange=e=>{BL.all=e.target.checked;drawBl()};
   $('#blAll').onchange=e=>{L.forEach(d=>e.target.checked?BL.inc.add(d.id):BL.inc.delete(d.id));renderBooklet()};
   document.querySelectorAll('#app tr.item').forEach(tr=>{
     const id=tr.dataset.id;
-    tr.onclick=e=>{if(e.target.closest('[data-stop]'))return;BL.sel=id;BL.all=false;renderBooklet()};
+    tr.onclick=async e=>{if(e.target.closest('[data-stop]'))return;const dd=docs.find(x=>x.id===id);if(dd&&!(await needUnlock(dd)))return;BL.sel=id;BL.all=false;renderBooklet()};
     tr.querySelector('.bk1').onchange=e=>{e.target.checked?BL.inc.add(id):BL.inc.delete(id);renderBooklet()};
   });
   $('#blPrint').onclick=()=>{if(!inc.length){toast('인쇄할 결의서를 체크하세요');return}printDocs(inc)};
@@ -5045,6 +5110,7 @@ async function renderBooklet(){
   const put=async files=>{
     const selDoc=getSel();
     if(!selDoc){toast('왼쪽에서 결의서를 먼저 선택하세요');return}
+    if(!(await needUnlock(selDoc)))return;
     files=[...files].filter(f=>f.type.startsWith('image/')||f.type==='application/pdf'||/\.pdf$/i.test(f.name||''));
     if(!files.length){toast('이미지 또는 PDF 파일을 놓아 주세요');return}
     await Store.hydrate(selDoc);
@@ -5073,7 +5139,7 @@ async function renderBooklet(){
     el.ondragover=e=>{e.preventDefault();el.style.outline='3px dashed #2b6cb0'};
     el.ondragleave=()=>{el.style.outline=''};
     el.ondrop=e=>{e.preventDefault();el.style.outline='';put(e.dataTransfer.files)}});
-  const pgBtn=(id,fn)=>{const b=$('#'+id);if(b)b.onclick=async()=>{const d=getSel();if(!d){toast('왼쪽에서 결의서를 먼저 선택하세요');return}fn(d);d.updated=Date.now();await Store.save(d);renderBooklet()}};
+  const pgBtn=(id,fn)=>{const b=$('#'+id);if(b)b.onclick=async()=>{const d=getSel();if(!d){toast('왼쪽에서 결의서를 먼저 선택하세요');return}if(!(await needUnlock(d)))return;fn(d);d.updated=Date.now();await Store.save(d);renderBooklet()}};
   pgBtn('blCopy',d=>{if(BL.pgPer){d.nextPer=parseInt(BL.pgPer,10);d.evLay=BL.pgPer==='2h'?'h':'v'}else if(!d.nextPer){d.nextPer=4;d.evLay='v'}
     const per=d.nextPer;
     const inN=d.inN!=null?Math.min(d.photos.length,+d.inN||0,capOf(d.evMax||4,d)):(d.evMode==='inline'?Math.min(d.photos.length,capOf(d.evMax||4,d)):0);
