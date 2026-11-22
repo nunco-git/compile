@@ -4937,7 +4937,7 @@ async function renderBooklet(){
    +'<div class="card" style="padding:0"><table class="dl"><tr><th style="width:30px"><input type="checkbox" id="blAll" style="width:auto"></th><th>번호</th><th>사업 / 적요</th><th style="text-align:right">금액</th></tr>'
    +(L.length?L.map(d=>{const f1=(d.items||[]).find(filled);return '<tr class="item'+(d.id===BL.sel?' hl':'')+'" data-id="'+d.id+'"><td data-stop><input type="checkbox" class="bk1" style="width:auto"'+(BL.inc.has(d.id)?' checked':'')+'></td><td>'+(d.kind==='in'?'<span class="tag in">수입</span>':'')+esc(d.no)+'</td><td>'+esc(d.biz)+(f1?' <span class="muted">'+esc(f1.memo||f1.acct)+'</span>':'')+'</td><td class="r">'+fmt(sumOf(d))+'</td></tr>'}).join(''):'<tr><td colspan="4" class="muted" style="padding:14px">해당 기간의 결의서가 없습니다.</td></tr>')
    +'</table></div></div>'
-   +'<div style="position:sticky;top:62px;align-self:start"><div class="row" style="margin-bottom:6px"><b>미리보기</b><label style="display:inline-flex;gap:4px;align-items:center;margin-left:10px"><input type="checkbox" id="blWhole" style="width:auto"'+(BL.all?' checked':'')+'> 체크한 전체 책자 보기</label><span class="muted" id="blInfo"></span></div><div class="pvbox" id="blPv" style="position:static;max-height:calc(100vh - 130px)"></div></div>'
+   +'<div style="position:sticky;top:62px;align-self:start"><div class="row" style="margin-bottom:6px"><b>미리보기</b><label style="display:inline-flex;gap:4px;align-items:center;margin-left:10px"><input type="checkbox" id="blWhole" style="width:auto"'+(BL.all?' checked':'')+'> 체크한 전체 책자 보기</label><label style="display:inline-flex;gap:4px;align-items:center;margin-left:10px"><input type="checkbox" id="blFit" style="width:auto"'+(BL.fit?' checked':'')+'> 체크한 적요 한 화면에 보기</label><span class="muted" id="blInfo"></span></div><div class="pvbox" id="blPv" style="position:static;max-height:calc(100vh - 130px)"></div></div>'
    +'</div></div>';
   const upd=()=>{
     let n=0;inc.forEach(d=>{n+=pgCount(pagesHTML(d))});
@@ -4954,9 +4954,18 @@ async function renderBooklet(){
       if(BL.inPer){c.evMode='inline';c.evMax=parseInt(BL.inPer,10);c.inLay=BL.inPer==='2h'?'h':'v';c.inPv=1;if(c.inN==null)c.inN=d.evMode==='inline'?Math.min((d.photos||[]).length,capOf(d.evMax||4,d)):0}
       if(BL.pgPer&&BL.pgLive){c.nextPer=parseInt(BL.pgPer,10);c.evLay=BL.pgPer==='2h'?'h':'v';c.pgPv=1}
       return c};
+    box.innerHTML='';box.style.display='';const bw=box.clientWidth,bh=box.clientHeight;
     box.innerHTML=list.map(d=>screenPages(live(d))).join('');
-    const W=793.7,H=1122.5,s=Math.min(1,Math.max(200,box.clientWidth-24)/W);
-    [...box.querySelectorAll('.page')].forEach(pg=>{const w=document.createElement('div');w.className='pvwrap';w.style.width=W*s+'px';w.style.height=H*s+'px';pg.parentNode.insertBefore(w,pg);w.appendChild(pg);pg.style.transform='scale('+s+')'});
+    const W=793.7,H=1122.5,pgs=[...box.querySelectorAll('.page')];
+    let s=Math.min(1,Math.max(200,bw-24)/W),gap=12;
+    box.style.display='';box.style.flexWrap='';box.style.justifyContent='';box.style.gap='';box.style.alignContent='';box.style.overflowY='';
+    if(BL.fit&&pgs.length){
+      const AW=Math.max(200,bw-24-2),AH=Math.max(200,window.innerHeight-130-24-2);gap=6;let best=0;
+      for(let c=1;c<=pgs.length;c++){const r=Math.ceil(pgs.length/c);const k=Math.min((AW-gap*c)/(c*W),(AH-gap*r)/(r*H));if(k>best){best=k;}}
+      s=Math.min(1,best);
+      box.style.display='flex';box.style.flexWrap='wrap';box.style.justifyContent='center';box.style.alignContent='flex-start';box.style.gap=gap+'px';box.style.overflowY='auto';
+    }
+    pgs.forEach(pg=>{const w=document.createElement('div');w.className='pvwrap';w.style.width=W*s+'px';w.style.height=H*s+'px';if(BL.fit)w.style.margin='0';pg.parentNode.insertBefore(w,pg);w.appendChild(pg);pg.style.transform='scale('+s+')'});
     box.onclick=async e=>{
       const bt=e.target.closest('[data-rot]');if(!bt)return;
       const pid=bt.dataset.pid;let dd=null,pp=null;
@@ -4975,6 +4984,7 @@ async function renderBooklet(){
   $('#blM').onchange=e=>{BL.m=e.target.value;BL.inc=null;BL.sel='';renderBooklet()};
   $('#blKo').onchange=e=>{BL.kOut=e.target.checked;BL.inc=null;BL.sel='';renderBooklet()};
   $('#blKi').onchange=e=>{BL.kIn=e.target.checked;BL.inc=null;BL.sel='';renderBooklet()};
+  $('#blFit').onchange=e=>{BL.fit=e.target.checked;drawBl()};
   $('#blWhole').onchange=e=>{BL.all=e.target.checked;drawBl()};
   $('#blAll').onchange=e=>{L.forEach(d=>e.target.checked?BL.inc.add(d.id):BL.inc.delete(d.id));renderBooklet()};
   document.querySelectorAll('#app tr.item').forEach(tr=>{
