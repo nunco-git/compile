@@ -3931,7 +3931,7 @@ function booksTx(year,full){
       const name=it.acct||d.mok||'(과목 미정)';
       const L=locateMok(d,name);
       out.push({docId:d.id,no:d.no,date:d.date,kind:d.kind,ft:d.fType,acct:name,
-        gn:L?L.gn:(d.gwan||''),hn:L?L.hn:(d.hang||''),gc:L?L.g:(d.gwanC||''),hc:L?L.h:(d.hangC||''),mc:L?L.m:((name===d.mok&&d.mokC)||''),
+        gn:L?L.gn:(it.xg||d.gwan||''),hn:L?L.hn:(it.xh||d.hang||''),gc:L?L.g:(d.gwanC||''),hc:L?L.h:(d.hangC||''),mc:L?L.m:((name===d.mok&&d.mokC)||''),
         memo:it.memo||'',vendor:it.vendor||'',fund:it.fund||'',amt,row:i});
     });
   });
@@ -4118,6 +4118,68 @@ function bkPrj(year,scr,all){
   const rows=booksTx(year).filter(t=>t.kind==='out'&&isPrj(t)).map(t=>({amt:t.amt,tr:'<tr'+hlc(t,scr)+'><td class="l">'+esc(t.acct)+'</td><td class="l">'+memoCell(t,scr)+'</td><td class="rt">'+fmt(t.amt)+'</td><td class="l"></td><td class="l">'+esc(t.vendor)+'</td></tr>'}));
   return bkTable('[별지 제21호서식]','사 업 비 명 세 서',year+'년도',['구 분','내 역','금 액','산 출 내 역','비 고'],[18,32,14,18,18],rows,scr,2,all);
 }
+const MISS='(과목 미정)';
+function normMemo(m){const x=String(m||'').replace(/\d{4}\s*[-./년]\s*\d{1,2}(\s*[-./월]\s*\d{1,2}\s*일?)?/g,'').replace(/\d{1,2}\s*월\s*분?/g,'').replace(/\d{1,2}\s*[-./]\s*\d{1,2}/g,'').replace(/[\d,]+/g,'').replace(/[()\[\]]/g,' ').replace(/\s+/g,' ').trim();return x||'(적요 없음)'}
+function missItems(kind){
+  const r=[];adocs().forEach(d=>{if(d.kind!==kind&&!(kind==='out'&&d.kind!=='in'))return;if(d.mok)return;
+    (d.items||[]).forEach(it=>{if(filled(it)&&!it.acct&&num(it.amt))r.push({d,it,key:normMemo(it.memo||it.vendor)})})});
+  return r;
+}
+function bulkDlg(){
+  const kinds=['in','out'].filter(k=>missItems(k).length);
+  if(!kinds.length){toast('과목이 정해지지 않은 항목이 없습니다');return}
+  const st={kind:kinds[0],chk:new Set()};
+  const m=document.createElement('div');m.className='modal';document.body.appendChild(m);
+  const tp=ACC_TYPES.find(x=>x.id===S_fType());
+  const draw=()=>{
+    const L=missItems(st.kind),G={};L.forEach(x=>{(G[x.key]=G[x.key]||{key:x.key,n:0,sum:0}).n++;G[x.key].sum+=num(x.it.amt)});
+    const gs=Object.values(G).sort((a,b)=>b.n-a.n),list=tp?tp[st.kind]:[];
+    const opts=list.map((g,gi)=>'<optgroup label="'+esc(g[1])+'">'+g[2].map((h,hi)=>h[2].map((mm,mi)=>'<option value="'+gi+'.'+hi+'.'+mi+'">'+esc(h[1]===mm[1]?mm[1]:h[1]+' › '+mm[1])+'</option>').join('')).join('')+'</optgroup>').join('');
+    m.innerHTML='<div class="box" style="max-width:860px;width:96vw;text-align:left;max-height:92vh;display:flex;flex-direction:column;padding:14px">'
+     +'<h3>과목 미정 일괄 설정</h3><div class="muted" style="margin-bottom:6px">같은 유형의 적요(날짜·숫자 제외)를 묶어 보여 줍니다. 체크한 적요 전체에 아래 계정과목을 한 번에 넣습니다.</div>'
+     +'<div class="row" style="align-items:center;gap:8px">'+(kinds.length>1?kinds.map(k=>'<label class="rbo" style="margin:0"><input type="radio" name="bdK" value="'+k+'"'+(st.kind===k?' checked':'')+' style="width:auto">'+(k==='in'?'세입':'세출')+'</label>').join(''):'<b>'+(st.kind==='in'?'세입':'세출')+'</b>')
+     +'<input id="bdQ" placeholder="검색어로 한꺼번에 체크 (예: 사업금)" style="flex:1;min-width:160px"><button class="sm" id="bdQb">검색어 포함 체크</button><button class="sm" id="bdAll">전체 체크</button><button class="sm" id="bdNone">해제</button></div>'
+     +'<div style="overflow:auto;flex:1;min-height:120px;margin-top:8px;border:1px solid var(--line)"><table class="dl"><tr><th style="width:30px"></th><th>적요 유형</th><th style="width:60px;text-align:right">건수</th><th style="width:110px;text-align:right">금액</th></tr>'
+     +gs.map(x=>'<tr><td><input type="checkbox" class="bdc" data-k="'+esc(x.key)+'" style="width:auto"'+(st.chk.has(x.key)?' checked':'')+'></td><td>'+esc(x.key)+'</td><td class="r">'+x.n+'</td><td class="r">'+fmt(x.sum)+'</td></tr>').join('')+'</table></div>'
+     +'<div class="grid g2" style="margin-top:8px"><div><label>넣을 계정과목</label><select id="bdA"><option value="">선택…</option>'+opts+'<option value="custom">＋ 별표에 없는 계정과목 직접 입력</option></select></div>'
+     +'<div id="bdX" style="display:none"></div></div>'
+     +'<div class="row" style="margin-top:10px"><button class="pri" id="bdOk">체크한 적요에 일괄 적용</button><button id="bdNo">닫기</button><span class="muted" id="bdInfo"></span></div></div>';
+    const info=()=>{const n=L.filter(x=>st.chk.has(x.key)).length;m.querySelector('#bdInfo').textContent=n?'체크한 항목 '+n+'건':''};
+    m.querySelectorAll('.bdc').forEach(c=>c.onchange=()=>{c.checked?st.chk.add(c.dataset.k):st.chk.delete(c.dataset.k);info()});
+    m.querySelectorAll('[name=bdK]').forEach(r=>r.onchange=()=>{st.kind=r.value;st.chk.clear();draw()});
+    m.querySelector('#bdQb').onclick=()=>{const q=m.querySelector('#bdQ').value.trim();if(!q){toast('검색어를 입력하세요');return}gs.forEach(x=>{if(x.key.includes(q))st.chk.add(x.key)});draw()};
+    m.querySelector('#bdAll').onclick=()=>{gs.forEach(x=>st.chk.add(x.key));draw()};
+    m.querySelector('#bdNone').onclick=()=>{st.chk.clear();draw()};
+    m.querySelector('#bdNo').onclick=()=>m.remove();
+    const sa=m.querySelector('#bdA'),bx=m.querySelector('#bdX');
+    sa.value=st.a||'';
+    const sub=()=>{
+      st.a=sa.value;bx.style.display='none';bx.innerHTML='';
+      if(sa.value==='custom'){bx.style.display='';bx.innerHTML='<label>계정과목 이름</label><input id="bdN" placeholder="예) 해오름사업 보조금수입"><div class="grid g2" style="margin-top:4px"><div><label>관(선택)</label><select id="bdG"><option value="">(없음)</option>'+list.map(g=>'<option>'+esc(g[1])+'</option>').join('')+'</select></div><div><label>항(선택)</label><input id="bdH" placeholder="항 이름"></div></div>'}
+      else if(sa.value){const [gi,hi,mi]=sa.value.split('.').map(Number),mm=list[gi][2][hi][2][mi];
+        if(mm[1].includes('○○'))bx.innerHTML='<label>○○ 부분 입력 <span class="muted">('+esc(mm[1])+')</span></label><input id="bdT" placeholder="예) 해오름사업">',bx.style.display=''}
+    };
+    sa.onchange=sub;sub();info();
+    m.querySelector('#bdOk').onclick=async()=>{
+      const keys=st.chk;if(!keys.size){toast('적요를 체크하세요');return}
+      if(!sa.value){toast('계정과목을 선택하세요');return}
+      let name='',xg='',xh='';
+      if(sa.value==='custom'){name=(m.querySelector('#bdN').value||'').trim();if(!name){toast('계정과목 이름을 입력하세요');return}xg=m.querySelector('#bdG').value;xh=(m.querySelector('#bdH').value||'').trim()}
+      else{const [gi,hi,mi]=sa.value.split('.').map(Number),mm=list[gi][2][hi][2][mi];name=mm[1];
+        if(name.includes('○○')){const t=(m.querySelector('#bdT').value||'').trim();if(!t){toast('○○ 부분을 입력하세요');return}name=name.replace(/○○/g,t)}}
+      const targets=L.filter(x=>keys.has(x.key)),ds=new Set();
+      targets.forEach(x=>{x.it.acct=name;if(xg)x.it.xg=xg;if(xh)x.it.xh=xh;ds.add(x.d)});
+      for(const d of ds){
+        const names=new Set((d.items||[]).filter(filled).map(i=>i.acct||''));
+        if(names.size===1&&!d.mok&&locateMok(d,name)&&d.acctAuto!==false)setMokByName(d,name);
+        d.updated=Date.now();await Store.save(d);
+      }
+      m.remove();toast('"'+name+'"으로 '+targets.length+'건을 설정했습니다',4000);renderBooks();
+    };
+  };
+  m.onclick=e=>{if(e.target===m)m.remove()};
+  draw();
+}
 function bkExpNames(year){const a=[];booksTx(year).filter(t=>t.kind==='out'&&!isHr(t)&&!isPrj(t)).forEach(t=>{const n=t.hn||t.acct;if(!a.includes(n))a.push(n)});return a}
 function bkExp(year,scr,all){
   const names=bkExpNames(year);
@@ -4229,7 +4291,8 @@ function renderBooks(){
   let ctx='';
   if(BK.tab==='led'){
     const ks=[],seen={};T.forEach(t=>{const k=t.kind+'|'+t.acct;if(!seen[k]){seen[k]=1;ks.push(k)}});
-    ctx='<div><label>계정과목</label><select id="kAcct"><option value="">전체 (계정별로 쪽 나눔)</option>'+ks.map(k=>'<option value="'+esc(k)+'"'+(BK.acct===k?' selected':'')+'>'+(k.startsWith('in')?'[세입] ':'[세출] ')+esc(k.split('|')[1])+'</option>').join('')+'</select></div>';
+    const nMiss=T.filter(t=>t.acct===MISS).length;
+    ctx='<div><label>계정과목</label><select id="kAcct"><option value="">전체 (계정별로 쪽 나눔)</option>'+ks.map(k=>'<option value="'+esc(k)+'"'+(BK.acct===k?' selected':'')+'>'+(k.startsWith('in')?'[세입] ':'[세출] ')+esc(k.split('|')[1])+'</option>').join('')+'</select>'+(nMiss?'<button class="sm" id="kBulk" style="margin-top:6px;background:#fff3cd">🧩 과목 미정 '+nMiss+'건 일괄 설정</button>':'')+'</div>';
   }else if(BK.tab==='cash'){
     ctx='<div><label>기초잔액 (전년도 이월금 · 올해 첫 거래 전 잔액)</label><input id="kOpen" inputmode="numeric" value="'+(bkOpen(BK.year)?fmt(bkOpen(BK.year)):'')+'" placeholder="0"></div>';
   }else if(BK.tab==='sexp'){
@@ -4257,6 +4320,7 @@ function renderBooks(){
   $('#kYear').onchange=e=>{BK.year=e.target.value;BK.acct='';renderBooks()};
   $('#kPer').onchange=e=>{BK.per=e.target.value;BK.hl=null;renderBooks()};
   document.querySelectorAll('.bktabs [data-t]').forEach(b=>b.onclick=()=>{BK.tab=b.dataset.t;BK.hl=null;renderBooks()});
+  const kb=$('#kBulk');if(kb)kb.onclick=bulkDlg;
   const ka=$('#kAcct');if(ka)ka.onchange=()=>{BK.acct=ka.value;renderBooks()};
   const ke=$('#kExp');if(ke)ke.onchange=()=>{BK.exp=ke.value;renderBooks()};
   const ko=$('#kOpen');if(ko)ko.onchange=()=>{S.open=S.open||{};S.open[BK.year]=num(ko.value);saveS();Store.saveProfile();renderBooks()};
