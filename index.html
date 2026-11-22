@@ -358,6 +358,26 @@ label{font-weight:500;color:#475467}
 .pf-bar{position:sticky;bottom:0;z-index:5;display:flex;gap:8px;align-items:center;padding:12px 0;background:linear-gradient(to top,var(--bg) 70%,rgba(244,246,251,0))}
 .pf-bar button{padding:9px 22px;font-size:14px}
 </style>
+<style id="ui4">
+.lsum{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px}
+.lsum>div{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--sh1);padding:12px 16px}
+.lsum span{display:block;font-size:12px;color:var(--sub)}.lsum b{font-size:19px;color:var(--ink)}
+.lsum .warn{background:#fffaeb;border-color:#fedf89}.lsum .warn b{color:#b54708}
+.bdg{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px}.bdg.ok{background:var(--pri-soft);color:var(--pri2)}.bdg.no{background:#fffaeb;color:#b54708}
+.dl th{position:sticky;top:0;z-index:1}
+.dl .sm{border-radius:8px}.dl .bDel{opacity:.75}.dl tr.item:hover .bDel{opacity:1}
+.bktabs{display:flex;flex-wrap:wrap;gap:14px 22px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.bkgrp{display:flex;flex-direction:column;gap:5px}.bkl{font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.04em}
+.seg{display:inline-flex;flex-wrap:wrap;gap:2px;background:#f2f4f8;border-radius:10px;padding:3px}
+.seg button{border:0!important;background:transparent!important;border-radius:8px;padding:6px 11px;color:#475467;font-weight:500}
+.seg button:hover{background:#e6eaf2!important}
+.seg button.on{background:#fff!important;color:var(--pri2)!important;box-shadow:0 1px 3px rgba(16,24,40,.15);font-weight:700}
+.bl2>div>.card,.bl2>div .card{border-radius:14px;box-shadow:var(--sh1)}
+.bl2 .pvbox{border-radius:14px;border:1px solid var(--line)}
+.bl2 tr.hl td{background:var(--pri-soft)!important}.bl2 tr.hl td:first-child{box-shadow:inset 3px 0 0 var(--pri)}
+.bl2 .rb .rbo{border-radius:999px}
+#blDrop{border:2px dashed #c7d2fe!important;border-radius:14px!important;background:#f8faff!important;transition:.15s}#blDrop:hover{border-color:var(--pri)!important;background:var(--pri-soft)!important}
+</style>
 </head>
 <body>
 <div id="shell"><aside id="side"></aside><main id="main"><div id="app"></div></main></div>
@@ -3882,6 +3902,8 @@ function renderList(){
   $('#app').innerHTML=
    '<div class="topbar"><h1>결의서 목록</h1><button class="pri" id="bNew">＋ 새 결의서</button>'+(EO()?'':'<button id="bBank">🏦 통장 거래내역 가져오기</button>')+'</div>'
   +'<div class="wrap">'
+  +(()=>{const A=adocs(),sum=(k)=>A.filter(d=>dk(d)===k).reduce((a,d)=>a+sumOf(d),0),noP=A.filter(d=>dk(d)!=='in'&&!(d.photos||[]).length&&sumOf(d)>0).length;
+    return '<div class="lsum"><div><span>전체 결의서</span><b>'+A.length+'건</b></div><div><span>지출 합계</span><b>'+fmt(sum('out'))+'원</b></div>'+(EO()?'':'<div><span>수입 합계</span><b>'+fmt(sum('in'))+'원</b></div>')+'<div class="'+(noP?'warn':'')+'"><span>증빙 미첨부</span><b>'+noP+'건</b></div></div>'})()
   +'<div class="card"><div class="toolbar">'
   +'<div class="fx" style="max-width:300px"><label>검색</label><input id="q" value="'+esc(filter)+'" placeholder="번호·사업·적요·거래처"></div>'
   +'<div style="width:96px"><label>출력 연도</label><select id="pY">'+perYears().map(y=>'<option'+(y===PP.y?' selected':'')+'>'+y+'</option>').join('')+'</select></div>'
@@ -3893,7 +3915,7 @@ function renderList(){
   +(list.length?'<table class="dl"><tr><th style="width:30px"><input type="checkbox" id="all" style="width:auto"></th><th>번호</th><th>사업 / 적요</th><th style="text-align:right">금액</th><th>증빙</th><th></th></tr>'
     +list.map(d=>{const f1=(d.items||[]).find(filled);return '<tr class="item" data-id="'+d.id+'"><td data-stop><input type="checkbox" class="ck" style="width:auto" '+(sel.has(d.id)?'checked':'')+'></td>'
       +'<td>'+kTag(d)+esc(d.no)+(isMixed(d)?' <span class="tag" style="background:#f5c518;color:#000" title="목이 서로 다른 항목이 섞여 있습니다">목 혼재</span>':'')+'</td><td>'+(locked(d)?'<span class="muted">비밀번호로 보호된 결의서</span>':esc(d.biz)+(f1?' <span class="muted">'+esc(f1.memo||f1.acct)+'</span>':''))+'</td>'
-      +'<td class="r">'+fmt(sumOf(d))+'</td><td>'+(d.photos||[]).length+'장</td>'
+      +'<td class="r"><b>'+fmt(sumOf(d))+'</b></td><td>'+((d.photos||[]).length?'<span class="bdg ok">📎 '+(d.photos||[]).length+'장</span>':'<span class="bdg no">없음</span>')+'</td>'
       +'<td data-stop style="white-space:nowrap"><button class="sm bDup">복제</button> <button class="sm dng bDel">삭제</button></td></tr>'}).join('')+'</table>'
     :'<div class="empty">아직 결의서가 없습니다. <b>＋ 새 결의서</b>를 눌러 시작하세요.</div>')
   +'<p class="muted" style="margin-top:12px">PDF로 저장하려면 인쇄 창에서 "PDF로 저장"을 선택하세요.</p></div>';
@@ -4784,7 +4806,7 @@ function renderBooks(){
   $('#app').innerHTML='<div class="topbar"><button id="kList">← 목록</button><h1>📒 장부·명세서</h1><button class="pri" id="kPrint">🖨 이 화면 인쇄</button><button id="kPrintSel">🖨 장부 선택 인쇄</button><button id="kPrintAll">전체 인쇄</button></div>'
     +'<div class="wrap"><div class="card"><div class="grid g3"><div><label>회계연도</label><select id="kYear">'+years.map(y=>'<option'+(y===BK.year?' selected':'')+'>'+y+'</option>').join('')+'</select></div>'
     +'<div><label>기간 (인쇄 범위)</label><select id="kPer"><option value="">연간 전체</option>'+[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>'<option value="'+m+'"'+(+BK.per===m?' selected':'')+'>'+m+'월</option>').join('')+'</select></div>'+ctx+'</div>'
-    +'<div class="bktabs">'+BK_TABS.map(t=>'<button class="sm'+(BK.tab===t[0]?' on':'')+'" data-t="'+t[0]+'">'+t[1]+'</button>').join('')+'</div>'
+    +'<div class="bktabs">'+[['결의서',['dout','din','dre']],['장부',['led','cash']],['결산서',['rin','rout']],['명세서',['b1','sbiz','sgov','spay','sprj','sexp']]].map(g=>{const ts=BK_TABS.filter(t=>g[1].includes(t[0]));return ts.length?'<div class="bkgrp"><span class="bkl">'+g[0]+'</span><div class="seg">'+ts.map(t=>'<button class="sm'+(BK.tab===t[0]?' on':'')+'" data-t="'+t[0]+'">'+t[1]+'</button>').join('')+'</div></div>':''}).join('')+'</div>'
     +'<div class="muted" style="margin-top:8px">결의서에서 자동으로 작성됩니다. 적요 끝의 <span style="color:#1a56c4;text-decoration:underline">(결의서번호)</span>를 누르면 해당 결의서가 열립니다. '
     +(BK.tab==='b1'?'<b>노란 칸</b>에 예산액·산출근거를 입력하면 결산서의 예산·증감에 반영됩니다.':'')+'</div></div>'
     +'<div class="pvbox" id="bkv" style="position:static;max-height:none;margin-top:12px"></div></div>';
