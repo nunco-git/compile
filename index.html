@@ -180,6 +180,8 @@ label{display:block;font-size:12px;color:var(--sub);margin:0 0 3px}
 .bk table{width:100%;border-collapse:collapse;font-size:12.5px;margin:8px 0}.bk th,.bk td{border-bottom:1px solid #e3e7ec;padding:4px 6px;text-align:left}.bk td.r{text-align:right}.bk .scroll{max-height:46vh;overflow:auto}
 
 .page.bkpg{padding:15mm}
+.bkp{position:relative}
+.bkp .bk-pn{position:absolute;top:0;right:0;font-size:9pt}
 .bkp .bk-ref{font-size:8.5pt;margin-bottom:2mm}
 .bkp .bk-title{text-align:center;font-size:17pt;letter-spacing:1.5mm;text-decoration:underline;margin:1mm 0 5mm}
 .bkp .bk-sub{text-align:center;font-size:10pt;margin:-2mm 0 4mm}
@@ -4137,7 +4139,11 @@ function bkPopup(id){
     m.querySelector('#bpOpen').onclick=()=>{close();BK.from=true;openDoc(id)};
   });
 }
-function bkPages(tab,year,scr,all){return fitPages(bkPages0(tab,year,scr,all))}
+function numberPages(html){
+  const K='<div class="pg-in bkp">',tot=html.split(K).length-1;if(!tot)return html;
+  let n=0;return html.split(K).map((x,i)=>i?K+'<div class="bk-pn">'+(++n)+' / '+tot+'</div>'+x:x).join('');
+}
+function bkPages(tab,year,scr,all){return numberPages(fitPages(bkPages0(tab,year,scr,all)))}
 function bkPages0(tab,year,scr,all){
   switch(tab){
     case 'led':return bkLedger(year,scr,all);case 'cash':return bkCash(year,scr,all);
