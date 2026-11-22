@@ -5143,7 +5143,7 @@ window.addEventListener('afterprint',()=>{$('#printRoot').innerHTML=''});
 
 
 /* ---------- 증빙서류입력(책자 출력) : 미리보기 + 증빙 빈 쪽 + 한 번에 인쇄 ---------- */
-let BL={y:'',m:'',kOut:true,kIn:true,kRe:true,inc:null,sel:'',all:false,inPer:'',pgPer:'4',orig:false};
+let BL={y:'',m:'',kOut:true,kIn:true,kRe:true,inc:null,sel:'',all:false,inPer:'2h',pgPer:'',orig:true,fit:true};
 function blDocs(){
   return adocs().filter(d=>String(d.year||(d.date||'').slice(0,4))===BL.y&&(!BL.m||+(d.date||'').slice(5,7)===+BL.m)&&(EO()?dk(d)==='out':(dk(d)==='re'?BL.kRe:dk(d)==='in'?BL.kIn:BL.kOut))).sort(byNo);
 }
