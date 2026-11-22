@@ -367,7 +367,7 @@ label{font-weight:500;color:#475467}
 .dl th{position:sticky;top:0;z-index:1}
 .dl .sm{border-radius:8px}.dl .bDel{opacity:.75}.dl tr.item:hover .bDel{opacity:1}
 .bktabs{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:10px;margin-top:0;padding:0}.bkgrp{flex:0 0 auto}.seg button{padding:5px 5px!important;font-size:12px;white-space:nowrap}.seg{padding:2px}.bktabs{gap:6px!important}
-.bkf{display:flex;gap:10px;align-items:flex-end;flex:1;flex-wrap:nowrap;margin:0 8px;min-width:0}.bkf>div{flex:0 0 auto}.bkf>div:nth-child(n+3){flex:0 1 auto;min-width:0}.bkf select{min-width:84px}.bkf #kAcct,.bkf #kExp{max-width:170px;width:100%;text-overflow:ellipsis}.bkf>div>div,.bkf>div{white-space:nowrap}.bkf>div{min-width:0}.bkf label{font-size:11px;margin:0 0 2px}.bkf select,.bkf input{padding:5px 8px;font-size:13px;min-width:0;width:auto}.bkf #kOpen{width:120px}.bkf .sm{margin-top:4px}
+.topbar:has(.bkf){flex-wrap:nowrap}.topbar:has(.bkf) h1{flex:0 0 auto;min-width:0;white-space:nowrap}.topbar:has(.bkf) button{white-space:nowrap}.bkf{justify-content:flex-start;display:flex;gap:10px;align-items:flex-end;flex:1;flex-wrap:nowrap;margin:0 0 0 10px;min-width:0}.bkf>div{flex:0 0 auto}.bkf>div:nth-child(n+3){flex:0 1 auto;min-width:0}.bkf select{min-width:84px}.bkf #kAcct,.bkf #kExp{max-width:170px;width:100%;text-overflow:ellipsis}.bkf>div>div,.bkf>div{white-space:nowrap}.bkf>div{min-width:0}.bkf label{font-size:11px;margin:0 0 2px}.bkf select,.bkf input{padding:5px 8px;font-size:13px;min-width:0;width:auto}.bkf #kOpen{width:120px}.bkf .sm{margin-top:4px}
 .bkgrp{display:flex;flex-direction:column;gap:5px}.bkl{font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.04em}
 .seg{display:inline-flex;flex-wrap:wrap;gap:2px;background:#f2f4f8;border-radius:10px;padding:3px}
 .seg button{border:0!important;background:transparent!important;border-radius:8px;padding:6px 11px;color:#475467;font-weight:500}
@@ -4797,7 +4797,7 @@ function renderBooks(){
   if(BK.tab==='led'){
     const ks=[],seen={};T.forEach(t=>{const k=t.kind+'|'+t.acct;if(!seen[k]){seen[k]=1;ks.push(k)}});
     const nMiss=T.filter(t=>t.acct===MISS).length;
-    ctx='<div><label>계정과목</label><select id="kAcct"><option value="">전체 (계정별로 쪽 나눔)</option>'+ks.map(k=>'<option value="'+esc(k)+'"'+(BK.acct===k?' selected':'')+'>'+(k.startsWith('in')?'[세입] ':'[세출] ')+esc(k.split('|')[1])+'</option>').join('')+'</select>'+(nMiss?'<button class="sm" id="kBulk" style="margin-top:6px;background:#fff3cd">🧩 과목 미정 '+nMiss+'건 일괄 설정</button>':'')+'</div>';
+    ctx='<div><label>계정과목</label><select id="kAcct"><option value="">전체 (계정별로 쪽 나눔)</option>'+ks.map(k=>'<option value="'+esc(k)+'"'+(BK.acct===k?' selected':'')+'>'+(k.startsWith('in')?'[세입] ':'[세출] ')+esc(k.split('|')[1])+'</option>').join('')+'</select>'+'</div>'+(nMiss?'<div><label>&nbsp;</label><button class="sm" id="kBulk" style="background:#fff3cd;padding:7px 10px">🧩 과목 미정 '+nMiss+'건 설정</button></div>':'');
   }else if(BK.tab==='cash'){
     ctx='<div><label title="전년도 이월금 · 올해 첫 거래 전 잔액">기초잔액</label><input id="kOpen" inputmode="numeric" value="'+(bkOpen(BK.year)?fmt(bkOpen(BK.year)):'')+'" placeholder="0"></div>';
   }else if(BK.tab==='sexp'){
