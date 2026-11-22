@@ -2760,6 +2760,12 @@ const Folder={
     this.pend=rest;toast('폴더에 '+n+'건 저장했습니다'+(rest.length?' (실패 '+rest.length+'건)':''));if(view==='list')renderList();
   }
 };
+function folderInline(){
+  if(!Folder.sup)return '<span class="muted" style="font-size:12px">📁 폴더 저장은 PC의 Chrome·Edge에서만 쓸 수 있습니다</span>';
+  return '<span class="muted" style="font-size:12.5px" title="'+(Folder.h?'연도/월/결의서번호/ 아래로 증빙 원본 파일이 저장됩니다':'폴더를 지정하면 올리는 증빙의 원본 파일이 이 PC 폴더에도 저장됩니다')+'">📁 증빙 원본 저장 폴더 : '+(Folder.h?'<b>'+esc(Folder.h.name)+'</b>':'미지정')+'</span>'
+    +'<button class="sm" id="fdPick">'+(Folder.h?'폴더 변경':'폴더 지정')+'</button>'+(Folder.h?'<button class="sm dng" id="fdClear">해제</button>':'')
+    +(Folder.pend.length?'<button class="sm pri" id="fdFlush">대기 파일 저장 ('+Folder.pend.length+')</button>':'');
+}
 function folderHTML(){
   if(!Folder.sup)return '<div class="muted" style="margin-bottom:10px">📁 폴더 저장은 PC의 Chrome·Edge에서만 쓸 수 있습니다. (이 브라우저는 지원하지 않습니다)</div>';
   return '<div class="card"><h2>증빙 원본 저장 폴더 <small>선택 사항 · PC 전용</small></h2><div class="row" style="align-items:center">'
@@ -2820,22 +2826,49 @@ function acNewDlg(){
   };
   nm.focus();
 }
+function acEditDlg(){
+  const a=S.acs.find(x=>x.id===S.ac);if(!a)return;
+  const m=document.createElement('div');m.className='modal';
+  m.innerHTML='<div class="box" style="text-align:left;max-width:420px"><h3>회계목록 수정</h3>'
+   +'<label>회계목록 이름</label><input id="aeN" value="'+esc(a.name)+'">'
+   +'<div class="grid g2" style="margin-top:8px"><div><label>회계구분</label><select id="aeD">'+['시설회계','법인회계','수익사업회계'].map(x=>'<option'+(a.acctDiv===x?' selected':'')+'>'+x+'</option>').join('')+'</select></div>'
+   +'<div><label>시설종류</label><select id="aeK">'+Object.keys(FAC_KIND).map(k=>'<option value="'+k+'"'+(a.facKind===k?' selected':'')+'>'+FAC_KIND[k]+'</option>').join('')+'</select></div></div>'
+   +'<div class="muted" style="margin-top:8px">회계구분·시설종류를 바꾸면 이후 새로 만드는 결의서와 통장 거래내역 가져오기부터 해당 별표 과목표가 적용됩니다. 이미 작성한 결의서의 과목은 바뀌지 않습니다.</div>'
+   +'<div class="row" style="margin-top:12px"><button class="pri" id="aeOk">저장</button><button id="aeNo">취소</button></div></div>';
+  document.body.appendChild(m);
+  const dv=m.querySelector('#aeD'),kd=m.querySelector('#aeK');const sy=()=>{kd.disabled=dv.value!=='시설회계'};dv.onchange=sy;sy();
+  m.onclick=e=>{if(e.target===m||e.target.id==='aeNo')m.remove()};
+  m.querySelector('#aeOk').onclick=()=>{
+    const n=m.querySelector('#aeN').value.trim();if(!n){toast('이름을 입력하세요');return}
+    if(S.acs.some(x=>x.id!==a.id&&x.name===n)){toast('같은 이름의 회계목록이 있습니다');return}
+    const p={acctDiv:dv.value,facKind:kd.disabled?(a.facKind||'facility'):kd.value};
+    a.name=n;S.acctDiv=p.acctDiv;S.facKind=p.facKind;S.fType=fTypeOfS(p);S.acctType=acctShort(p);
+    saveS();Store.saveProfile();m.remove();renderList();toast('수정했습니다');
+  };
+}
 function acHTML(){
-  return '<div class="card"><h2>회계목록 <small>회계별로 결의서·장부를 나누어 작성</small></h2><div class="row" style="align-items:center">'
-   +'<select id="acSel" style="width:auto;min-width:180px">'+S.acs.map(a=>'<option value="'+a.id+'"'+(a.id===S.ac?' selected':'')+'>'+esc(a.name)+'</option>').join('')+'</select>'
-   +'<button class="sm" id="acRen">이름 변경</button><button class="sm pri" id="acNew">＋ 새 회계목록</button>'+(S.acs.length>1?'<button class="sm dng" id="acDel">삭제</button>':'')
-   +'<span class="muted">'+esc(S.acctDiv||'')+(S.acctDiv==='시설회계'?' · '+(FAC_KIND[S.facKind]||''):'')+' · 결의서 '+acStats()+'</span></div></div>';
+  return '<div class="card"><div class="row" style="align-items:center;gap:8px;flex-wrap:wrap"><b>회계목록</b>'
+   +'<select id="acSel" style="width:auto;min-width:160px">'+S.acs.map(a=>'<option value="'+a.id+'"'+(a.id===S.ac?' selected':'')+'>'+esc(a.name)+'</option>').join('')+'</select>'
+   +'<button class="sm" id="acEdit">수정</button><button class="sm" id="acRen">이름 변경</button><button class="sm pri" id="acNew">＋ 새 회계목록</button><button class="sm dng" id="acDel">삭제</button>'
+   +'<span class="muted" style="font-size:12.5px">'+esc(S.acctDiv||'')+(S.acctDiv==='시설회계'?' · '+(FAC_KIND[S.facKind]||''):'')+' · 결의서 '+acStats()+'</span>'
+   +'<span style="margin-left:auto;display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">'+folderInline()+'</span></div></div>';
 }
 function bindAc(){
   const sl=$('#acSel');if(!sl)return;
   sl.onchange=()=>switchAc(sl.value);
   $('#acNew').onclick=()=>{if(!S.saved){toast('먼저 ① 시설 정보를 입력하고 저장하세요');return}acNewDlg()};
   $('#acRen').onclick=()=>{const a=S.acs.find(x=>x.id===S.ac);const n=(prompt('회계목록 이름',a.name)||'').trim();if(!n||n===a.name)return;if(S.acs.some(x=>x.name===n)){toast('같은 이름의 회계목록이 있습니다');return}a.name=n;saveS();Store.saveProfile();renderList()};
-  const dl=$('#acDel');if(dl)dl.onclick=()=>{
-    if(adocs().length){toast('결의서가 남아 있는 회계목록은 삭제할 수 없습니다. 결의서를 먼저 삭제하세요',4500);return}
-    if(!confirm('회계목록 "'+S.acs.find(x=>x.id===S.ac).name+'"을 삭제할까요? (기초잔액·예산 입력값도 함께 삭제됩니다)'))return;
-    const id=S.ac;S.acs=S.acs.filter(x=>x.id!==id);switchAc(S.acs[0].id);
+  const dl=$('#acDel');if(dl)dl.onclick=async()=>{
+    if(S.acs.length<2){toast('회계목록이 하나뿐이어서 삭제할 수 없습니다. 먼저 다른 회계목록을 만드세요',4500);return}
+    const a=S.acs.find(x=>x.id===S.ac),L=adocs();
+    if(!confirm('회계목록 "'+a.name+'"을 삭제할까요?'+(L.length?'\n\n이 회계목록의 결의서 '+L.length+'건과 증빙 사진도 함께 삭제되며 되돌릴 수 없습니다.':'')+'\n(기초잔액·예산 입력값도 함께 삭제됩니다)'))return;
+    if(L.length&&!confirm('정말 삭제합니다. 결의서 '+L.length+'건이 모두 지워집니다. 계속할까요?'))return;
+    toast('삭제하는 중…',6000);
+    for(const d of L){try{await Store.remove(d)}catch(e){console.error(e)}}
+    const ids=new Set(L.map(d=>d.id));docs=docs.filter(d=>!ids.has(d.id));
+    const id=S.ac;S.acs=S.acs.filter(x=>x.id!==id);switchAc(S.acs[0].id);toast('삭제했습니다');
   };
+  $('#acEdit').onclick=()=>acEditDlg();
 }
 loadS();
 const FAC_KIND={facility:'일반 시설(노인·장애인 등)',welfare:'복지관 등',childcare:'어린이집',ltc:'노인장기요양기관'};
@@ -3525,7 +3558,6 @@ function renderList(){
      :'<div class="banner loc">📱 지금은 <b>이 기기에만</b> 저장되는 모드입니다. (Firebase 설정을 넣으면 구글 로그인·기기 간 동기화가 켜집니다)</div>')
   +acHTML()
   +profHTML()
-  +folderHTML()
   +'<div class="listhead">'
   +'<div class="fac" style="max-width:260px"><label>검색</label><input id="q" value="'+esc(filter)+'" placeholder="번호·사업·적요·거래처"></div>'
   +'<button class="pri" id="bNew">＋ 새 결의서</button><button id="bBank">🏦 통장 거래내역 가져오기</button><button id="bBook">📒 장부·명세서</button><button id="bBooklet">📖 책자 출력(미리보기)</button>'+(adocs().some(isMixed)?'<button id="bSplitAll" style="background:#fff3cd">⚠ 목이 섞인 결의서 나누기 ('+docs.filter(isMixed).length+')</button>':'')
