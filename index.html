@@ -3070,7 +3070,7 @@ function fTypeOfS(p){return p.acctDiv==='보조사업'?'subsidy':p.acctDiv==='�
 function acctShort(p){return String(p.acctDiv||'').replace(/회계$/,'')}
 function profSummary(p){
   const a=[p.year+'년도',p.acctDiv+(p.acctDiv==='시설회계'?' · '+(FAC_KIND[p.facKind]||''):''),p.facility];
-  if(p.head)a.push('시설장 '+p.head);if(p.manager)a.push('담당자 '+p.manager);if(p.spender)a.push('지출원 '+p.spender);if(p.writer)a.push('작성 '+p.writer);if(p.shared)a.push('공동사용');if(p.expOnly)a.push('지출결의서만 사용');
+  if(p.head)a.push((p.acctDiv==='보조사업'?'대표자 ':'시설장 ')+p.head);if(p.manager)a.push((p.acctDiv==='보조사업'?'보조사업담당자 ':'담당자 ')+p.manager);if(p.spender)a.push('지출원 '+p.spender);if(p.writer)a.push('작성 '+p.writer);if(p.shared)a.push('공동사용');if(p.expOnly)a.push('지출결의서만 사용');
   return a.filter(Boolean).join(' · ');
 }
 /* ---------- 데이터 ---------- */
@@ -3657,7 +3657,7 @@ function pagesHTML(d){
     +(d.remark?'<div class="rtext">'+esc(d.remark)+'</div>':'')
     +((inl.length||d.inPv)?'<div class="evgrid evbox" style="'+gridStyle(Math.max(inl.length,d.evMax||4),d.inN!=null?d.inLay:d.evLay)+'">'+evPad(inl,d.evMax||4,anyCap,d.origNeed)+'</div>':'')
     +'</div></div>';
-  const foot='<div class="foot"><span>시설명 : '+esc(d.facility)+'</span><span>'+(d.head?'시설장 : '+esc(d.head)+'　':'')+(d.manager?'담당자 : '+esc(d.manager):'')+'</span></div>';
+  const foot='<div class="foot"><span>'+(d.fType==='subsidy'?'보조사업자명':'시설명')+' : '+esc(d.facility)+'</span><span>'+(d.head?(d.fType==='subsidy'?'대표자':'시설장')+' : '+esc(d.head)+'　':'')+(d.manager?(d.fType==='subsidy'?'보조사업담당자':'담당자')+' : '+esc(d.manager):'')+'</span></div>';
   const ttl=KL[dk(d)];
   let out='';
   if(parts.length===1)out='<section class="page"><div class="pg-in"><div class="head"><div class="title">'+ttl+'</div>'+appr+'</div>'+t1+t2+sum+rem+foot+'</div></section>';
@@ -3680,13 +3680,13 @@ function pagesHTML(d){
     const cols=per<=2?1:2;
     out+='<section class="page"><div class="pg-in"><div class="evhead"><span><b>증빙자료</b>　'+esc(d.biz)+'</span><span>결의서 번호 '+esc(d.no)+'　('+(idx+1)+'/'+chunks.length+')</span></div>'
       +'<div class="evgrid evbox" style="'+gridStyle(Math.max(c.length,per),d.evLay)+'">'+evPad(c,per,anyCap,d.origNeed)+'</div>'
-      +'<div class="foot"><span>시설명 : '+esc(d.facility)+'</span><span></span></div></div></section>';
+      +'<div class="foot"><span>'+(d.fType==='subsidy'?'보조사업자명':'시설명')+' : '+esc(d.facility)+'</span><span></span></div></div></section>';
   });
   const bn=Math.min(20,(photos.length?0:Math.max(0,Math.min(10,+d.blankPg||0)))+Math.max(0,+d.blankAdd||0));
   for(let i=1;i<=bn;i++){
     out+='<section class="page"><div class="pg-in"><div class="evhead"><span><b>증빙서류</b>　'+esc(d.biz)+'</span><span>결의서 번호 '+esc(d.no)+'　('+i+'/'+bn+')</span></div>'
       +'<div class="blankbody"><span class="hint">증빙서류를 붙이는 면</span></div>'
-      +'<div class="foot"><span>시설명 : '+esc(d.facility)+'</span><span></span></div></div></section>';
+      +'<div class="foot"><span>'+(d.fType==='subsidy'?'보조사업자명':'시설명')+' : '+esc(d.facility)+'</span><span></span></div></div></section>';
   }
   return out;
 }
@@ -3811,32 +3811,33 @@ async function stampData(file){
 }
 function profHTML(){
   const yr=new Date().getFullYear(),ys=[];for(let y=yr-3;y<=yr+1;y++)ys.push(y);if(S.year&&ys.indexOf(+S.year)<0)ys.push(+S.year);
+  const SUB=S.acctDiv==='보조사업',LB=SUB?{fac:'보조사업자',head:'보조사업자 대표자',mgr:'보조사업담당자'}:{fac:'시설',head:'시설장',mgr:'담당자'};
   const stThumb=(v,lb)=>'<div class="pf-st"><div class="pf-stb">'+(v?'<img src="'+v+'" alt="">':'<span>없음</span>')+'</div><small>'+lb+'</small></div>';
   const divNote=S.acctDiv==='수익사업회계'?'수익사업회계는 별표 과목표가 없어 관·항·목을 직접 입력합니다.':S.acctDiv==='보조사업'?'보조사업은 지방보조사업비 보조비목(항)·보조세목(목) 과목표(별표 1의4호)로 적요가 자동 분류됩니다. 세목은 적요 항목에서 직접 입력합니다.':'회계구분·시설종류에 맞는 별표 예산과목으로 적요가 자동 분류됩니다.';
   if(S.saved&&!profOpen){
-    const kindLb=S.acctDiv==='시설회계'?' · '+(FAC_KIND[S.facKind]||''):'';
+    const kindLb=S.acctDiv==='시설회계'?' · '+(FAC_KIND[S.facKind]||''):SUB?' · 보조사업자':'';
     const val=(lb,v)=>'<div class="pf-kv"><small>'+lb+'</small><b'+(v?'':' class="no"')+'>'+(v?esc(v):'미입력')+'</b></div>';
-    return '<div class="card pfv"><div class="pfv-top"><div class="pfv-logo">🏢</div><div class="pfv-t"><b>'+esc(S.facility||'시설명 미입력')+'</b>'
+    return '<div class="card pfv"><div class="pfv-top"><div class="pfv-logo">🏢</div><div class="pfv-t"><b>'+esc(S.facility||LB.fac+'명 미입력')+'</b>'
      +'<div class="pfv-tags"><span>'+esc(S.year)+'년도</span><span>'+esc(S.acctDiv)+esc(kindLb)+'</span>'+(S.shared?'<span class="g">🔒 공동사용</span>':'')+(S.expOnly?'<span class="g">지출결의서만 사용</span>':'')+'</div></div>'
-     +'<button id="pfEdit" class="pri">✎ 시설 정보 수정</button></div>'
-     +'<div class="pfv-grid">'+val('시설장',S.head)+val('담당자',S.manager)+val('지출원',S.spender)+val('작성(작성자)',S.writer)
-     +'<div class="pf-kv"><small>결재인</small><div style="display:flex;gap:10px">'+stThumb(S.stampHead,'시설장')+stThumb(S.stampMgr,'담당자')+'</div></div></div></div>';
+     +'<button id="pfEdit" class="pri">✎ 수정</button></div>'
+     +'<div class="pfv-grid">'+val(LB.head,S.head)+val(LB.mgr,S.manager)+val('지출원',S.spender)+val('작성(작성자)',S.writer)
+     +'<div class="pf-kv"><small>결재인</small><div style="display:flex;gap:10px">'+stThumb(S.stampHead,SUB?'대표자':'시설장')+stThumb(S.stampMgr,SUB?'담당자':'담당자')+'</div></div></div></div>';
   }
   const fld=(id,ic,lb,v,ph,cls)=>'<div class="pf-f'+(cls?' '+cls:'')+'"><label for="'+id+'"><i>'+ic+'</i>'+lb+'</label><input id="'+id+'" value="'+esc(v||'')+'" placeholder="'+(ph||'')+'"></div>';
   const corp=S.acctDiv==='법인회계'||S.acctDiv==='수익사업회계'||S.acctDiv==='보조사업';
   const sw=(id,t,d,on)=>'<label class="pf-sw"><input type="checkbox" id="'+id+'"'+(on?' checked':'')+'><span class="tg"></span><span class="tx"><b>'+t+'</b><small>'+d+'</small></span></label>';
   const stBox=(k,lb,v)=>'<div class="pf-stc"><div class="pf-stb lg">'+(v?'<img src="'+v+'" alt="">':'<span>이미지 없음</span>')+'</div><div class="pf-sti"><b>'+lb+'</b><div class="row" style="gap:6px"><button class="sm" type="button" id="stUp'+k+'">'+(v?'다시 등록':'이미지 등록')+'</button>'+(v?'<button class="sm dng" type="button" id="stDel'+k+'">삭제</button>':'')+'</div></div><input type="file" accept="image/*" id="stF'+k+'" style="display:none"></div>';
-  return '<div class="pf-wrap"><div class="pf-intro"><h2>시설 정보</h2><p>'+(S.saved?'수정한 뒤 아래 저장을 눌러 주세요.':'처음 한 번만 입력하면 새 결의서마다 자동으로 들어갑니다.')+'</p></div>'
+  return '<div class="pf-wrap"><div class="pf-intro"><h2>'+LB.fac+' 정보</h2><p>'+(S.saved?'수정한 뒤 아래 저장을 눌러 주세요.':'처음 한 번만 입력하면 새 결의서마다 자동으로 들어갑니다.')+'</p></div>'
    +'<section class="pf-sec"><div class="pf-h"><em>1</em><div><b>회계 구분</b><small>결의서 제목 옆 회계 표시와 과목표가 여기서 정해집니다</small></div></div>'
    +'<div class="pf-g3"><div class="pf-f"><label for="pfYear"><i>📅</i>회계연도</label><select id="pfYear">'+ys.map(y=>'<option'+(String(y)===String(S.year)?' selected':'')+'>'+y+'</option>').join('')+'</select></div>'
    +'<div class="pf-f"><label for="pfDiv"><i>📚</i>회계구분</label><select id="pfDiv">'+['시설회계','법인회계','수익사업회계','보조사업'].map(x=>'<option'+(S.acctDiv===x?' selected':'')+'>'+x+'</option>').join('')+'</select></div>'
-   +'<div class="pf-f"><label for="pfKind"><i>🏥</i>시설종류</label><select id="pfKind"'+(corp?' disabled':'')+'>'+Object.keys(FAC_KIND).map(k=>'<option value="'+k+'"'+(S.facKind===k?' selected':'')+'>'+FAC_KIND[k]+'</option>').join('')+'</select></div></div>'
+   +'<div class="pf-f"><label for="pfKind"><i>🏥</i>'+(SUB?'보조사업자 구분':'시설종류')+'</label><select id="pfKind"'+(corp?' disabled':'')+'>'+(SUB?'<option>보조사업자</option>':Object.keys(FAC_KIND).map(k=>'<option value="'+k+'"'+(S.facKind===k?' selected':'')+'>'+FAC_KIND[k]+'</option>').join(''))+'</select></div></div>'
    +'<div class="pf-note">'+divNote+'</div></section>'
-   +'<section class="pf-sec"><div class="pf-h"><em>2</em><div><b>시설 · 담당자</b><small>결의서 하단과 결재란에 표시됩니다</small></div></div>'
-   +fld('pfFac','🏢','시설명',S.facility,'예) ○○실버홈','wide')
-   +'<div class="pf-g2">'+fld('pfHead','👤','시설장',S.head,'성명')+fld('pfMgr','🧑‍💼','담당자',S.manager,'성명')+fld('pfSp','💳','지출원',S.spender,'성명')+fld('pfWr','✍️','작성(작성자)',S.writer,'성명')+'</div></section>'
-   +'<section class="pf-sec"><div class="pf-h"><em>3</em><div><b>결재인(도장·서명)</b><small>결재란의 해당 칸(시설장·원장 / 담당·작성)에 자동으로 들어가 인쇄됩니다. 배경이 흰색인 사진도 괜찮습니다.</small></div></div>'
-   +'<div class="pf-g2">'+stBox('Head','시설장 결재인',S.stampHead)+stBox('Mgr','담당자 결재인',S.stampMgr)+'</div></section>'
+   +'<section class="pf-sec"><div class="pf-h"><em>2</em><div><b>'+LB.fac+' · '+LB.mgr+'</b><small>결의서 하단과 결재란에 표시됩니다</small></div></div>'
+   +fld('pfFac','🏢',LB.fac+'명',S.facility,SUB?'예) ○○단체':'예) ○○실버홈','wide')
+   +'<div class="pf-g2">'+fld('pfHead','👤',LB.head,S.head,'성명')+fld('pfMgr','🧑‍💼',LB.mgr,S.manager,'성명')+fld('pfSp','💳','지출원',S.spender,'성명')+fld('pfWr','✍️','작성(작성자)',S.writer,'성명')+'</div></section>'
+   +'<section class="pf-sec"><div class="pf-h"><em>3</em><div><b>결재인(도장·서명)</b><small>결재란의 해당 칸('+(SUB?'대표자·원장 / 담당·작성':'시설장·원장 / 담당·작성')+')에 자동으로 들어가 인쇄됩니다. 배경이 흰색인 사진도 괜찮습니다.</small></div></div>'
+   +'<div class="pf-g2">'+stBox('Head',(SUB?'대표자':'시설장')+' 결재인',S.stampHead)+stBox('Mgr',(SUB?'보조사업담당자':'담당자')+' 결재인',S.stampMgr)+'</div></section>'
    +'<section class="pf-sec"><div class="pf-h"><em>4</em><div><b>사용 방식</b><small>필요한 경우에만 켜세요</small></div></div>'
    +sw('pfShared','공동사용','보조사업자 등이 한 계정을 함께 쓸 때, 결의서를 작성하면서 결의서별 비밀번호를 설정할 수 있습니다.',S.shared)
    +sw('pfExpOnly','지출결의서만 사용','총계정원장·현금출납부 등 장부와 수입·여입결의서, 통장 거래내역 가져오기를 숨기고 지출결의서만 씁니다.',S.expOnly)+'</section>'
