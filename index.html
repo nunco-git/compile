@@ -366,7 +366,8 @@ label{font-weight:500;color:#475467}
 .bdg{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px}.bdg.ok{background:var(--pri-soft);color:var(--pri2)}.bdg.no{background:#fffaeb;color:#b54708}
 .dl th{position:sticky;top:0;z-index:1}
 .dl .sm{border-radius:8px}.dl .bDel{opacity:.75}.dl tr.item:hover .bDel{opacity:1}
-.bktabs{display:flex;flex-wrap:wrap;gap:14px 22px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.bktabs{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:10px;margin-top:0;padding:0}.bkgrp{flex:0 0 auto}.seg button{padding:5px 5px!important;font-size:12px;white-space:nowrap}.seg{padding:2px}.bktabs{gap:6px!important}
+.bkf{display:flex;gap:10px;align-items:flex-end;flex:1;flex-wrap:wrap;margin:0 8px}.bkf>div{min-width:0}.bkf label{font-size:11px;margin:0 0 2px}.bkf select,.bkf input{padding:5px 8px;font-size:13px;min-width:0;width:auto}.bkf #kOpen{width:120px}.bkf .sm{margin-top:4px}
 .bkgrp{display:flex;flex-direction:column;gap:5px}.bkl{font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.04em}
 .seg{display:inline-flex;flex-wrap:wrap;gap:2px;background:#f2f4f8;border-radius:10px;padding:3px}
 .seg button{border:0!important;background:transparent!important;border-radius:8px;padding:6px 11px;color:#475467;font-weight:500}
@@ -4798,15 +4799,13 @@ function renderBooks(){
     const nMiss=T.filter(t=>t.acct===MISS).length;
     ctx='<div><label>계정과목</label><select id="kAcct"><option value="">전체 (계정별로 쪽 나눔)</option>'+ks.map(k=>'<option value="'+esc(k)+'"'+(BK.acct===k?' selected':'')+'>'+(k.startsWith('in')?'[세입] ':'[세출] ')+esc(k.split('|')[1])+'</option>').join('')+'</select>'+(nMiss?'<button class="sm" id="kBulk" style="margin-top:6px;background:#fff3cd">🧩 과목 미정 '+nMiss+'건 일괄 설정</button>':'')+'</div>';
   }else if(BK.tab==='cash'){
-    ctx='<div><label>기초잔액 (전년도 이월금 · 올해 첫 거래 전 잔액)</label><input id="kOpen" inputmode="numeric" value="'+(bkOpen(BK.year)?fmt(bkOpen(BK.year)):'')+'" placeholder="0"></div>';
+    ctx='<div><label title="전년도 이월금 · 올해 첫 거래 전 잔액">기초잔액</label><input id="kOpen" inputmode="numeric" value="'+(bkOpen(BK.year)?fmt(bkOpen(BK.year)):'')+'" placeholder="0"></div>';
   }else if(BK.tab==='sexp'){
     const ns=bkExpNames(BK.year);
     ctx='<div><label>항목</label><select id="kExp">'+ns.map(n=>'<option'+(BK.exp===n?' selected':'')+'>'+esc(n)+'</option>').join('')+'</select></div>';
   }
-  $('#app').innerHTML='<div class="topbar"><button id="kList">← 목록</button><h1>📒 장부·명세서</h1><button class="pri" id="kPrint">🖨 이 화면 인쇄</button><button id="kPrintSel">🖨 장부 선택 인쇄</button><button id="kPrintAll">전체 인쇄</button></div>'
-    +'<div class="wrap"><div class="card"><div class="grid g3"><div><label>회계연도</label><select id="kYear">'+years.map(y=>'<option'+(y===BK.year?' selected':'')+'>'+y+'</option>').join('')+'</select></div>'
-    +'<div><label>기간 (인쇄 범위)</label><select id="kPer"><option value="">연간 전체</option>'+[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>'<option value="'+m+'"'+(+BK.per===m?' selected':'')+'>'+m+'월</option>').join('')+'</select></div>'+ctx+'</div>'
-    +'<div class="bktabs">'+[['결의서',['dout','din','dre']],['장부',['led','cash']],['결산서',['rin','rout']],['명세서',['b1','sbiz','sgov','spay','sprj','sexp']]].map(g=>{const ts=BK_TABS.filter(t=>g[1].includes(t[0]));return ts.length?'<div class="bkgrp"><span class="bkl">'+g[0]+'</span><div class="seg">'+ts.map(t=>'<button class="sm'+(BK.tab===t[0]?' on':'')+'" data-t="'+t[0]+'">'+t[1]+'</button>').join('')+'</div></div>':''}).join('')+'</div>'
+  $('#app').innerHTML='<div class="topbar"><button id="kList">← 목록</button><h1>📒 장부·명세서</h1><div class="bkf" id="bkf"><div><label>회계연도</label><select id="kYear">'+years.map(y=>'<option'+(y===BK.year?' selected':'')+'>'+y+'</option>').join('')+'</select></div><div><label>기간 (인쇄 범위)</label><select id="kPer"><option value="">연간 전체</option>'+[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>'<option value="'+m+'"'+(+BK.per===m?' selected':'')+'>'+m+'월</option>').join('')+'</select></div>'+ctx+'</div><button class="pri" id="kPrint">🖨 이 화면 인쇄</button><button id="kPrintSel">🖨 장부 선택 인쇄</button><button id="kPrintAll">전체 인쇄</button></div>'
+    +'<div class="wrap"><div class="card" style="padding:12px 14px">'+'<div class="bktabs">'+[['결의서',['dout','din','dre']],['장부',['led','cash']],['결산서',['rin','rout']],['명세서',['b1','sbiz','sgov','spay','sprj','sexp']]].map(g=>{const ts=BK_TABS.filter(t=>g[1].includes(t[0]));return ts.length?'<div class="bkgrp"><span class="bkl">'+g[0]+'</span><div class="seg">'+ts.map(t=>'<button class="sm'+(BK.tab===t[0]?' on':'')+'" data-t="'+t[0]+'" title="'+t[1]+'">'+t[1].replace('(예산)','')+'</button>').join('')+'</div></div>':''}).join('')+'</div>'
     +'<div class="muted" style="margin-top:8px">결의서에서 자동으로 작성됩니다. 적요 끝의 <span style="color:#1a56c4;text-decoration:underline">(결의서번호)</span>를 누르면 해당 결의서가 열립니다. '
     +(BK.tab==='b1'?'<b>노란 칸</b>에 예산액·산출근거를 입력하면 결산서의 예산·증감에 반영됩니다.':'')+'</div></div>'
     +'<div class="pvbox" id="bkv" style="position:static;max-height:none;margin-top:12px"></div></div>';
