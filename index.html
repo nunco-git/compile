@@ -3497,8 +3497,11 @@ const byNo=(a,b)=>String(a.no).localeCompare(String(b.no),'ko',{numeric:true});
 
 /* ---------- 지출결의서 페이지 HTML ---------- */
 function gridStyle(n,lay){if(n===2&&lay==='h')return 'grid-template-columns:repeat(2,1fr);grid-template-rows:1fr';const c=n<=3?1:2,r=n<=3?Math.max(1,n):Math.ceil(n/2);return 'grid-template-columns:repeat('+c+',1fr);grid-template-rows:repeat('+r+',1fr)'}
-function capOf(n,d){n=+n||0;return n-(d&&d.origNeed&&n>=2?1:0)}
-function evPad(a,n,any){return a.map(p=>evCell(p,any)).join('')+'<div class="ev empty"><span>원본서류 첨부</span></div>'.repeat(Math.max(0,n-a.length))}
+function capOf(n,d){n=+n||0;return d&&d.origNeed&&n>=2?Math.floor(n/2):n}
+function evPad(a,n,any,orig){
+  const E='<div class="ev empty"><span>원본서류 첨부</span></div>';
+  if(orig&&n>=2){let h='',k=0;for(let i=0;i<n;i++)h+=(i%2===0&&k<a.length)?evCell(a[k++],any):E;return h}
+  return a.map(p=>evCell(p,any)).join('')+'<div class="ev empty"><span>원본서류 첨부</span></div>'.repeat(Math.max(0,n-a.length))}
 let useTh=false;
 function screenPages(d){useTh=true;try{return pagesHTML(d)}finally{useTh=false}}
 function evCell(p,any){return '<div class="ev">'+'<span class="rotbtns"><button data-rot="l" data-pid="'+esc(p.id||'')+'" title="왼쪽으로 회전">↺</button><button data-rot="r" data-pid="'+esc(p.id||'')+'" title="오른쪽으로 회전">↻</button></span>'+(any?'<div class="cap">'+esc(p.cap||'')+'&nbsp;</div>':'')+'<div class="iw"><img src="'+((useTh&&p.th)||p.data||'')+'" alt="" decoding="async"></div></div>'}
@@ -3533,7 +3536,7 @@ function pagesHTML(d){
   const sum='<div class="box sum"><div class="lb">금액</div><div class="vl">'+(total?'금'+fmt(total)+'원(금'+toKorean(total)+'원)':'')+'</div></div>';
   const rem='<div class="box remark"><div class="lb">비고</div><div class="vl">'
     +(d.remark?'<div class="rtext">'+esc(d.remark)+'</div>':'')
-    +((inl.length||d.inPv)?'<div class="evgrid evbox" style="'+gridStyle(Math.max(inl.length,d.evMax||4),d.inN!=null?d.inLay:d.evLay)+'">'+evPad(inl,d.evMax||4,anyCap)+'</div>':'')
+    +((inl.length||d.inPv)?'<div class="evgrid evbox" style="'+gridStyle(Math.max(inl.length,d.evMax||4),d.inN!=null?d.inLay:d.evLay)+'">'+evPad(inl,d.evMax||4,anyCap,d.origNeed)+'</div>':'')
     +'</div></div>';
   const foot='<div class="foot"><span>시설명 : '+esc(d.facility)+'</span><span>'+(d.head?'시설장 : '+esc(d.head)+'　':'')+(d.manager?'담당자 : '+esc(d.manager):'')+'</span></div>';
   const ttl=d.kind==='in'?'수입결의서':'지출결의서';
@@ -3557,7 +3560,7 @@ function pagesHTML(d){
   chunks.forEach((c,idx)=>{
     const cols=per<=2?1:2;
     out+='<section class="page"><div class="pg-in"><div class="evhead"><span><b>증빙자료</b>　'+esc(d.biz)+'</span><span>결의서 번호 '+esc(d.no)+'　('+(idx+1)+'/'+chunks.length+')</span></div>'
-      +'<div class="evgrid evbox" style="'+gridStyle(Math.max(c.length,per),d.evLay)+'">'+evPad(c,per,anyCap)+'</div>'
+      +'<div class="evgrid evbox" style="'+gridStyle(Math.max(c.length,per),d.evLay)+'">'+evPad(c,per,anyCap,d.origNeed)+'</div>'
       +'<div class="foot"><span>시설명 : '+esc(d.facility)+'</span><span></span></div></div></section>';
   });
   const bn=Math.min(20,(photos.length?0:Math.max(0,Math.min(10,+d.blankPg||0)))+Math.max(0,+d.blankAdd||0));
