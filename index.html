@@ -2631,9 +2631,39 @@ const Store={
   ref(id){return this.fb.doc(this.db,'users',this.user.uid,'docs',id)},
   pcol(id){return this.fb.collection(this.db,'users',this.user.uid,'docs',id,'photos')},
   pref(id,pid){return this.fb.doc(this.db,'users',this.user.uid,'docs',id,'photos',pid)},
-  subscribe(cb,err){
-    this.unsubscribe();
-    this.unsub=this.fb.onSnapshot(this.col(),snap=>cb(snap.docs.map(x=>Object.assign({},x.data(),{id:x.id}))),e=>err&&err(e));
+  /* 현재 회계목록 + 불러온 연도의 결의서만 받습니다 (S.qv: 결의서마다 ac·year 필드를 붙이는 1회 정리가 끝난 뒤부터) */
+  subscribe(cb,err){this.cb=cb;this.err=err;this.waiters=[];this.initYears();this.watch()},
+  initYears(){const a=acYears(),y=new Set();if(S.year)y.add(String(S.year));if(a[0])y.add(a[0]);this.years=y},
+  watch(){
+    this.unsubscribe();const fb=this.fb;
+    const ys=[...this.years].filter(Boolean);
+    const q=(S.qv&&ys.length&&fb.query&&fb.where)?fb.query(this.col(),fb.where('ac','==',S.ac),fb.where('year','in',ys)):this.col();
+    this.unsub=fb.onSnapshot(q,snap=>{
+      this.cb(snap.docs.map(x=>Object.assign({},x.data(),{id:x.id})));
+      if(!(snap.metadata&&snap.metadata.fromCache)){const w=this.waiters;this.waiters=[];w.forEach(f=>f())}
+    },e=>this.err&&this.err(e));
+  },
+  ensureYears(list){
+    if(!this.cloud||!S.qv||!this.years)return Promise.resolve();
+    const miss=[...new Set((list||[]).map(String))].filter(y=>y&&!this.years.has(y));
+    if(!miss.length)return Promise.resolve();
+    miss.forEach(y=>this.years.add(y));
+    return new Promise(ok=>{this.waiters.push(ok);setTimeout(ok,6000);this.watch()});
+  },
+  loadAll(){return this.ensureYears(acYears())},
+  async migrate(){
+    if(S.qv||!this.cloud||!this.user)return;
+    try{
+      const snap=await this.fb.getDocs(this.col()),first=S.acs[0].id,yrs={};
+      const jobs=[];
+      snap.docs.forEach(x=>{const d=x.data(),patch={},ac=d.ac||first,y=String(d.year||(d.date||'').slice(0,4)||S.year||'');
+        if(!d.ac)patch.ac=ac;if(d.year!==y)patch.year=y;
+        (yrs[ac]=yrs[ac]||new Set()).add(y);
+        if(Object.keys(patch).length)jobs.push(()=>this.fb.updateDoc(this.ref(x.id),patch))});
+      for(let i=0;i<jobs.length;i+=20)await Promise.all(jobs.slice(i,i+20).map(f=>f()));
+      S.acs.forEach(a=>{const st=yrs[a.id];if(st)a.yrs=[...new Set([...(a.yrs||[]),...st])].sort()});
+      S.qv=1;saveS();await this.saveProfile();
+    }catch(e){console.error(e)}
   },
   unsubscribe(){if(this.unsub){this.unsub();this.unsub=null}},
   async login(){
@@ -2657,7 +2687,7 @@ const Store={
   /* 결의서 저장 */
   save(d){
     if(!this.cloud)return DB.put(d);
-    const c=clone(d);c.photos=(d.photos||[]).map(p=>{const o={id:p.id,cap:p.cap||''};['sp','op','on','v'].forEach(k=>{if(p[k]!==undefined&&p[k]!=='')o[k]=p[k]});return o});delete c.id;
+    noteYear(d);const c=clone(d);c.photos=(d.photos||[]).map(p=>{const o={id:p.id,cap:p.cap||''};['sp','op','on','v','tp'].forEach(k=>{if(p[k]!==undefined&&p[k]!=='')o[k]=p[k]});return o});delete c.id;
     return this.fb.setDoc(this.ref(d.id),c).catch(e=>{console.error(e);toast('저장 실패: '+(e.code||e.message),4000)});
   },
   /* 사진 저장: 스토리지가 되면 화면용 사진 + 원본 파일을 스토리지에, 안 되면 Firestore에 (opt.file = 원본 파일) */
@@ -2670,7 +2700,8 @@ const Store={
         const fb=this.fb,base='users/'+this.user.uid+'/evidence/'+d.id+'/';
         const sp=p.sp||(base+p.id+'.jpg');
         await fb.uploadBytes(fb.ref(this.st,sp),dataURLtoBlob(p.data),{contentType:'image/jpeg'});
-        p.sp=sp;p.v=Date.now();
+        p.sp=sp;p.v=Date.now();p.th='';
+        try{const tp=base+p.id+'_t.jpg';await fb.uploadBytes(fb.ref(this.st,tp),dataURLtoBlob(await thumbData(p.data)),{contentType:'image/jpeg'});p.tp=tp}catch(e){console.error(e);p.tp=''}
         if(opt&&opt.file){
           const f=opt.file,sh=opt.shared||{};
           if(!sh.pr){
@@ -2683,7 +2714,7 @@ const Store={
         {const live=(typeof docs!=='undefined'&&docs.find(x=>x.id===d.id))||d;
          let q=(live.photos||[]).find(x=>x.id===p.id);
          if(!q&&live!==d){q={id:p.id,cap:p.cap||''};(live.photos=live.photos||[]).push(q)}
-         if(q){q.sp=p.sp;q.v=p.v;if(p.op){q.op=p.op;q.on=p.on}}
+         if(q){q.sp=p.sp;q.v=p.v;delete q.th;if(p.tp)q.tp=p.tp;else delete q.tp;if(p.op){q.op=p.op;q.on=p.on}}
          this.save(live)}
         return;
       }catch(e){
@@ -2697,6 +2728,7 @@ const Store={
     if(!this.cloud)return;this.cache.delete(p.id);
     try{await this.fb.deleteDoc(this.pref(d.id,p.id))}catch(e){console.error(e)}
     if(this.st&&p.sp){try{await this.fb.deleteObject(this.fb.ref(this.st,p.sp))}catch(e){console.error(e)}}
+    if(this.st&&p.tp){try{await this.fb.deleteObject(this.fb.ref(this.st,p.tp))}catch(e){console.error(e)}}
     if(this.st&&p.op&&!(d.photos||[]).some(q=>q!==p&&q.op===p.op)){try{await this.fb.deleteObject(this.fb.ref(this.st,p.op))}catch(e){console.error(e)}}
   },
   async remove(d){
@@ -2708,6 +2740,7 @@ const Store={
   async hydrate(d){
     if(!this.cloud)return;
     await Promise.all((d.photos||[]).map(async p=>{
+      if(p.tp&&!p.th&&this.st){try{const u=await this.fb.getDownloadURL(this.fb.ref(this.st,p.tp));p.th=/^https?:/.test(u)?u+(u.indexOf('?')>=0?'&':'?')+'v='+(p.v||0):u}catch(e){p.th=''}}
       if(p.data)return;
       if(this.cache.has(p.id)){p.data=this.cache.get(p.id);return}
       if(p.sp&&this.st){
@@ -2797,7 +2830,14 @@ const adocs=()=>docs.filter(inAc);
 function switchAc(id){
   syncOut();const a=S.acs.find(x=>x.id===id);if(!a)return;
   AC_F.forEach(k=>{if(a[k]!==undefined)S[k]=a[k]});S.open=a.open||{};S.bud=a.bud||{};S.ac=id;
-  sel.clear();saveS();Store.saveProfile();renderList();
+  sel.clear();saveS();Store.saveProfile();if(Store.cloud&&Store.user&&Store.fb){Store.initYears();Store.watch()}renderList();
+}
+function acYears(){const a=S.acs.find(x=>x.id===S.ac)||{};return (a.yrs||[]).slice().sort().reverse()}
+function noteYear(d){
+  const y=String(d.year||'');if(!y)return;
+  const a=S.acs.find(x=>x.id===(d.ac||S.acs[0].id));if(!a)return;
+  a.yrs=a.yrs||[];if(a.yrs.includes(y))return;
+  a.yrs.push(y);a.yrs.sort();saveS();clearTimeout(window.__yrT);window.__yrT=setTimeout(()=>Store.saveProfile(),1000);
 }
 function acStats(){const n=adocs().length;return n+'건'}
 function acNewDlg(){
@@ -2860,7 +2900,7 @@ function bindAc(){
   $('#acRen').onclick=()=>{const a=S.acs.find(x=>x.id===S.ac);const n=(prompt('회계목록 이름',a.name)||'').trim();if(!n||n===a.name)return;if(S.acs.some(x=>x.name===n)){toast('같은 이름의 회계목록이 있습니다');return}a.name=n;saveS();Store.saveProfile();renderList()};
   const dl=$('#acDel');if(dl)dl.onclick=async()=>{
     if(S.acs.length<2){toast('회계목록이 하나뿐이어서 삭제할 수 없습니다. 먼저 다른 회계목록을 만드세요',4500);return}
-    const a=S.acs.find(x=>x.id===S.ac),L=adocs();
+    await Store.loadAll();const a=S.acs.find(x=>x.id===S.ac),L=adocs();
     if(!confirm('회계목록 "'+a.name+'"을 삭제할까요?'+(L.length?'\n\n이 회계목록의 결의서 '+L.length+'건과 증빙 사진도 함께 삭제되며 되돌릴 수 없습니다.':'')+'\n(기초잔액·예산 입력값도 함께 삭제됩니다)'))return;
     if(L.length&&!confirm('정말 삭제합니다. 결의서 '+L.length+'건이 모두 지워집니다. 계속할까요?'))return;
     toast('삭제하는 중…',6000);
@@ -3346,7 +3386,9 @@ const byNo=(a,b)=>String(a.no).localeCompare(String(b.no),'ko',{numeric:true});
 function gridStyle(n,lay){if(n===2&&lay==='h')return 'grid-template-columns:repeat(2,1fr);grid-template-rows:1fr';const c=n<=3?1:2,r=n<=3?Math.max(1,n):Math.ceil(n/2);return 'grid-template-columns:repeat('+c+',1fr);grid-template-rows:repeat('+r+',1fr)'}
 function capOf(n,d){n=+n||0;return n-(d&&d.origNeed&&n>=2?1:0)}
 function evPad(a,n,any){return a.map(p=>evCell(p,any)).join('')+'<div class="ev empty"><span>원본서류 첨부</span></div>'.repeat(Math.max(0,n-a.length))}
-function evCell(p,any){return '<div class="ev">'+'<span class="rotbtns"><button data-rot="l" data-pid="'+esc(p.id||'')+'" title="왼쪽으로 회전">↺</button><button data-rot="r" data-pid="'+esc(p.id||'')+'" title="오른쪽으로 회전">↻</button></span>'+(any?'<div class="cap">'+esc(p.cap||'')+'&nbsp;</div>':'')+'<div class="iw"><img src="'+(p.data||'')+'" alt=""></div></div>'}
+let useTh=false;
+function screenPages(d){useTh=true;try{return pagesHTML(d)}finally{useTh=false}}
+function evCell(p,any){return '<div class="ev">'+'<span class="rotbtns"><button data-rot="l" data-pid="'+esc(p.id||'')+'" title="왼쪽으로 회전">↺</button><button data-rot="r" data-pid="'+esc(p.id||'')+'" title="오른쪽으로 회전">↻</button></span>'+(any?'<div class="cap">'+esc(p.cap||'')+'&nbsp;</div>':'')+'<div class="iw"><img src="'+((useTh&&p.th)||p.data||'')+'" alt="" decoding="async"></div></div>'}
 function pagesHTML(d){
   const rows=(d.items||[]).filter(filled);
   const total=sumOf(d);
@@ -3425,6 +3467,11 @@ function encodeFit(c,q){
   }
   return cv.toDataURL('image/jpeg',0.5);
 }
+function thumbData(dataUrl){
+  return new Promise((ok,no)=>{const im=new Image();im.onload=()=>{
+    const sc=Math.min(1,640/Math.max(im.naturalWidth,im.naturalHeight)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.naturalWidth*sc));c.height=Math.max(1,Math.round(im.naturalHeight*sc));
+    c.getContext('2d').drawImage(im,0,0,c.width,c.height);ok(c.toDataURL('image/jpeg',0.7))};im.onerror=no;im.src=dataUrl})
+}
 async function fileToDataURL(file,maxSide){
   maxSide=maxSide||1400;
   let src,w,h,rel=()=>{};
@@ -3468,10 +3515,12 @@ function touch(){
   setStat('저장 중…');
   clearTimeout(saveT);
   saveT=setTimeout(()=>{
-    Promise.resolve(Store.save(cur));
+    saveT=0;Promise.resolve(Store.save(cur));
     setStat(Store.cloud?'☁ 자동 저장됨':(DB.ok?'자동 저장됨':'⚠ 브라우저 저장 불가(메모리만)'));
-  },400);
+  },1200);
 }
+const flushNow=()=>{if(saveT&&cur){clearTimeout(saveT);saveT=0;Store.save(cur)}};
+window.addEventListener('pagehide',flushNow);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushNow()});
 async function flushSave(){clearTimeout(saveT);if(cur)await Store.save(cur)}
 
 /* ---------- 로그인 화면 ---------- */
@@ -3542,7 +3591,7 @@ function readProf(){
   const kd=$('#pfKind');if(kd&&!kd.disabled)S.facKind=kd.value;
 }
 let PP={y:'',m:'',k:''};
-function perYears(){const a=new Set(adocs().map(d=>String(d.year||(d.date||'').slice(0,4))).filter(Boolean));if(S.year)a.add(String(S.year));const r=[...a].sort().reverse();if(!PP.y)PP.y=r[0]||String(new Date().getFullYear());return r}
+function perYears(){const a=new Set(adocs().map(d=>String(d.year||(d.date||'').slice(0,4))).filter(Boolean));acYears().forEach(y=>a.add(y));if(S.year)a.add(String(S.year));const r=[...a].sort().reverse();if(!PP.y)PP.y=r[0]||String(new Date().getFullYear());return r}
 function perDocs(){return adocs().filter(d=>String(d.year||(d.date||'').slice(0,4))===PP.y&&(!PP.m||+(d.date||'').slice(5,7)===+PP.m)&&(!PP.k||d.kind===PP.k)).sort(byNo)}
 function renderList(){
   cur=null;view='list';
@@ -3583,7 +3632,7 @@ function renderList(){
   $('#bBooklet').onclick=()=>{if(!adocs().length){toast('출력할 결의서가 없습니다');return}openBooklet()};
   const sa=$('#bSplitAll');if(sa)sa.onclick=async()=>{if(!confirm('목이 서로 다른 항목이 섞인 결의서를 목별로 나눕니다. (증빙 사진은 원래 결의서에 남습니다) 진행할까요?'))return;let n=0;for(const d of adocs().filter(isMixed).slice())n+=await splitByMok(d);toast('결의서 '+n+'건을 새로 만들었습니다',4000);renderList()};
   const upd=()=>{PP.y=$('#pY').value;PP.m=$('#pM').value;PP.k='';const L=perDocs();$('#nAll').textContent=L.length;$('#nOut').textContent=L.filter(d=>d.kind!=='in').length;$('#nIn').textContent=L.filter(d=>d.kind==='in').length};
-  ['pY','pM'].forEach(i=>$('#'+i).onchange=upd);upd();
+  $('#pY').onchange=async()=>{const y=$('#pY').value;if(Store.cloud&&Store.years&&!Store.years.has(y)){toast('불러오는 중…',4000);await Store.ensureYears([y]);PP.y=y;renderList();return}upd()};$('#pM').onchange=upd;upd();
   const perPrint=k=>{PP.k=k;const L=perDocs().filter(d=>!k||(k==='in'?d.kind==='in':d.kind!=='in'));PP.k='';if(!L.length){toast('해당 기간의 '+(k==='in'?'세입':k==='out'?'지출':'')+'결의서가 없습니다');return}printDocs(L)};
   $('#bPerOut').onclick=()=>perPrint('out');$('#bPerIn').onclick=()=>perPrint('in');$('#bPerAll').onclick=()=>perPrint('');
   $('#bExp').onclick=exportAll;$('#bImp').onclick=()=>$('#fileImp').click();
@@ -3607,10 +3656,10 @@ function renderList(){
   });
 }
 async function exportAll(){
-  toast('백업 파일 만드는 중…',6000);
+  toast('백업 파일 만드는 중…',6000);await Store.loadAll();
   const copy=[];let bad=0;
   for(const d of docs){await Store.hydrate(d);const c=clone(d);
-    for(const p of (c.photos||[])){try{p.data=await localData(p.data)}catch(e){bad++;p.data=''}delete p.sp;delete p.op;delete p.on;delete p.v}
+    for(const p of (c.photos||[])){try{p.data=await localData(p.data)}catch(e){bad++;p.data=''}delete p.sp;delete p.op;delete p.on;delete p.v;delete p.tp;delete p.th}
     copy.push(c)}
   if(bad)toast('스토리지 사진 '+bad+'장을 백업에 담지 못했습니다 (CORS 설정 필요)',6000);
   const blob=new Blob([JSON.stringify({v:1,settings:S,docs:copy})],{type:'application/json'});
@@ -3621,9 +3670,11 @@ $('#fileImp').onchange=async e=>{
   try{const j=JSON.parse(await f.text());if(!Array.isArray(j.docs))throw 0;
     toast('불러오는 중…',6000);
     for(const d of j.docs){if(!d.id)continue;
-      for(const p of (d.photos||[])){if(!p.id)p.id=uid();delete p.sp;delete p.op;delete p.on;delete p.v;await Store.savePhoto(d,p)}
+      d.ac=S.ac;d.year=String(d.year||(d.date||'').slice(0,4)||S.year||'');
+      for(const p of (d.photos||[])){if(!p.id)p.id=uid();delete p.sp;delete p.op;delete p.on;delete p.v;delete p.tp;delete p.th;await Store.savePhoto(d,p)}
       await Store.save(d);const i=docs.findIndex(x=>x.id===d.id);if(i>=0)docs[i]=d;else docs.push(d)}
-    if(j.settings){Object.assign(S,j.settings);saveS()}
+    if(j.settings){const st=Object.assign({},j.settings);['acs','ac','qv','open','bud','acctDiv','facKind','fType','acctType'].forEach(k=>delete st[k]);Object.assign(S,st);saveS()}
+    await Store.ensureYears(j.docs.map(d=>String(d.year||'')));
     toast(j.docs.length+'건 불러왔습니다');renderList();
   }catch(err){console.error(err);toast('백업 파일을 읽을 수 없습니다')}
 };
@@ -3681,7 +3732,7 @@ function renderEdit(){
   +'<datalist id="dlA"></datalist><datalist id="dlF">'+FUNDS.map(a=>'<option value="'+a+'">').join('')+'</datalist>'
   +'</div><div class="pvbox" id="pv"></div></div></div>';
 
-  $('#bList').onclick=async()=>{await flushSave();BK.from=false;renderList()};
+  $('#bList').onclick=async()=>{await flushSave();const yy=cur&&cur.year;BK.from=false;if(yy)await Store.ensureYears([String(yy)]);renderList()};
   const bb=$('#bBack');if(bb)bb.onclick=async()=>{await flushSave();renderBooks()};
   $('#bFac').onclick=async()=>{await flushSave();profOpen=true;renderList()};
   $('#autoOcr').onchange=e=>{S.autoOcr=e.target.checked;saveS()};
@@ -3911,7 +3962,7 @@ const bsg=n=>n<0?'△'+fmt(-n):(n?fmt(n):'');
 const bfm=n=>n?fmt(n):'';
 const corpUse=()=>S.acctDiv==='법인회계';
 const useLbl=()=>corpUse()?'법인용':'시설용';
-function bkYears(){const a=new Set(adocs().map(d=>String(d.year||'')).filter(Boolean));if(S.year)a.add(String(S.year));return [...a].sort().reverse()}
+function bkYears(){const a=new Set(adocs().map(d=>String(d.year||'')).filter(Boolean));acYears().forEach(y=>a.add(y));if(S.year)a.add(String(S.year));return [...a].sort().reverse()}
 function bkOpen(y){const o=(S.open||{})[y];return typeof o==='number'?o:0}
 function locateMok(d,name){
   const list=accList(d);if(!list)return null;
@@ -4225,7 +4276,7 @@ function bkPopup(id){
       +'<div class="row" style="align-items:center;margin-bottom:8px"><b style="flex:1">'+esc(d.no)+' · '+esc(d.biz||'')+'</b><button class="sm pri" id="bpOpen">결의서 열기(수정)</button><button class="sm" id="bpNo">닫기 ✕</button></div>'
       +'<div id="bpBox" style="flex:1;overflow:auto;background:#6b7280;padding:10px"></div></div>';
     document.body.appendChild(m);
-    const bx=m.querySelector('#bpBox');bx.innerHTML=pagesHTML(d);scalePages(bx);
+    const bx=m.querySelector('#bpBox');bx.innerHTML=screenPages(d);scalePages(bx);
     const close=()=>{m.remove();document.removeEventListener('keydown',esc_)};
     const esc_=e=>{if(e.key==='Escape')close()};document.addEventListener('keydown',esc_);
     m.onclick=e=>{if(e.target===m)close()};
@@ -4317,7 +4368,7 @@ function renderBooks(){
   }
   const h=box.querySelector('tr.hl');if(h)h.scrollIntoView({block:'center'});
   $('#kList').onclick=()=>renderList();
-  $('#kYear').onchange=e=>{BK.year=e.target.value;BK.acct='';renderBooks()};
+  $('#kYear').onchange=async e=>{BK.year=e.target.value;BK.acct='';await Store.ensureYears([BK.year]);renderBooks()};
   $('#kPer').onchange=e=>{BK.per=e.target.value;BK.hl=null;renderBooks()};
   document.querySelectorAll('.bktabs [data-t]').forEach(b=>b.onclick=()=>{BK.tab=b.dataset.t;BK.hl=null;renderBooks()});
   const kb=$('#kBulk');if(kb)kb.onclick=bulkDlg;
@@ -4359,6 +4410,7 @@ async function importBank(file){
     for(const rows of sheets){const r=parseBank(rows);if(r.txs&&r.txs.length){res=r;break}if(!err&&r.error)err=r.error}
   }catch(e){console.error(e);err='파일을 읽지 못했습니다: '+(e.message||e)+' (암호가 걸린 엑셀은 암호를 해제한 뒤 올려 주세요)'}
   if(!res){toast(err||'가져올 거래가 없습니다. 입금·출금 금액이 있는 행을 찾지 못했습니다.',6000);return}
+  await Store.ensureYears(res.txs.map(t=>String(t.date).slice(0,4)));
   const have=new Set();adocs().forEach(d=>(d.items||[]).forEach(i=>{if(i.bk)have.add(i.bk)}));
   const fresh=res.txs.filter(t=>!have.has(t.key)),dup=res.txs.length-fresh.length;
   if(!fresh.length){toast('이미 가져온 거래입니다. 새로 만들 결의서가 없습니다.',5000);return}
@@ -4592,11 +4644,12 @@ function refreshMix(){
   box.innerHTML='<div class="banner" style="background:#fff3cd;border-color:#e0b100"><b>⚠ 목이 서로 다른 항목이 한 결의서에 있습니다.</b> ('+G.map(x=>esc(x.acct||'미정')+' '+x.items.length+'건').join(' · ')+')<br>결의서는 목마다 따로 작성해야 합니다. <button class="sm pri" id="bSplit">목별로 결의서 나누기</button></div>';
   $('#bSplit').onclick=async()=>{const d=cur;await flushSave();const n=await splitByMok(d);toast('목별로 결의서 '+n+'건을 새로 만들었습니다',4000);renderList()};
 }
+let lkT;
 function drawPv(){
-  refreshBkLinks();refreshMix();
+  clearTimeout(lkT);lkT=setTimeout(()=>{refreshBkLinks();refreshMix()},700);
   const box=$('#pv');if(!box||!cur)return;
   const keep=box.scrollTop;
-  box.innerHTML=pagesHTML(cur);
+  box.innerHTML=screenPages(cur);
   const W=793.7,H=1122.5,avail=Math.max(200,box.clientWidth-24),s=Math.min(1,avail/W);
   [...box.querySelectorAll('.page')].forEach(pg=>{
     const w=document.createElement('div');w.className='pvwrap';w.style.width=W*s+'px';w.style.height=H*s+'px';
@@ -4660,7 +4713,7 @@ async function renderBooklet(){
     const list=(BL.all?L.filter(d=>BL.inc.has(d.id)):L.filter(d=>d.id===BL.sel)).map(d=>docs.find(x=>x.id===d.id)||d);
     if(!list.length){box.innerHTML='<div class="empty" style="color:#fff">미리볼 결의서가 없습니다</div>';return}
     for(const d of list)await Store.hydrate(d);
-    box.innerHTML=list.map(d=>pagesHTML(d)).join('');
+    box.innerHTML=list.map(d=>screenPages(d)).join('');
     const W=793.7,H=1122.5,s=Math.min(1,Math.max(200,box.clientWidth-24)/W);
     [...box.querySelectorAll('.page')].forEach(pg=>{const w=document.createElement('div');w.className='pvwrap';w.style.width=W*s+'px';w.style.height=H*s+'px';pg.parentNode.insertBefore(w,pg);w.appendChild(pg);pg.style.transform='scale('+s+')'});
     box.onclick=async e=>{
@@ -4677,7 +4730,7 @@ async function renderBooklet(){
   };
   upd();drawBl();
   $('#blBack').onclick=()=>renderList();
-  $('#blY').onchange=e=>{BL.y=e.target.value;BL.inc=null;BL.sel='';renderBooklet()};
+  $('#blY').onchange=async e=>{BL.y=e.target.value;BL.inc=null;BL.sel='';await Store.ensureYears([BL.y]);renderBooklet()};
   $('#blM').onchange=e=>{BL.m=e.target.value;BL.inc=null;BL.sel='';renderBooklet()};
   $('#blKo').onchange=e=>{BL.kOut=e.target.checked;BL.inc=null;BL.sel='';renderBooklet()};
   $('#blKi').onchange=e=>{BL.kIn=e.target.checked;BL.inc=null;BL.sel='';renderBooklet()};
@@ -4740,7 +4793,7 @@ async function renderBooklet(){
 let view='list';
 function resetBp(){if(!S.bpv&&docs.length){S.bpv=1;saveS();try{Store.saveProfile()}catch(e){}docs.filter(d=>d.blankPg>0).forEach(d=>{d.blankPg=0;Store.save(d)})}}
 function applySnapshot(arr){
-  docs=arr.map(d=>(cur&&d.id===cur.id)?cur:d);resetBp();
+  docs=arr.map(d=>(cur&&d.id===cur.id)?cur:d);if(cur&&!docs.some(d=>d.id===cur.id))docs.push(cur);resetBp();
   [...sel].forEach(id=>{if(!docs.some(d=>d.id===id))sel.delete(id)});
   if(pendingOpen&&docs.some(d=>d.id===pendingOpen)){const id=pendingOpen;pendingOpen=null;history.replaceState(null,'',location.pathname+location.search);openDoc(id).then(()=>{const c=$('#photoCard');if(c)c.scrollIntoView()});return}
   if(cur)return;                       // 편집 중에는 화면을 건드리지 않음
@@ -4754,7 +4807,7 @@ function applySnapshot(arr){
   
   try{
     await Store.init(u=>{
-      if(u){loadS();Store.loadProfile().then(()=>{Store.subscribe(applySnapshot,e=>{console.error(e);toast('데이터를 불러오지 못했습니다: '+(e.code||e.message),5000)})})}
+      if(u){loadS();Store.loadProfile().then(async()=>{await Store.migrate();Store.subscribe(applySnapshot,e=>{console.error(e);toast('데이터를 불러오지 못했습니다: '+(e.code||e.message),5000)})})}
       else{docs=[];sel.clear();loadS();renderLogin()}
     });
   }catch(e){
