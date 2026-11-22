@@ -2961,7 +2961,7 @@ function acNewDlg(){
   m.innerHTML='<div class="box" style="text-align:left;max-width:420px"><h3>새 회계목록 만들기</h3>'
    +'<div class="muted" style="margin-bottom:8px">한 시설에서 시설회계·법인회계·수익사업회계 등 여러 회계를 따로 작성할 수 있습니다. 회계목록마다 결의서·장부·기초잔액·예산이 따로 관리됩니다.</div>'
    +'<label>회계목록 이름</label><input id="acN" placeholder="예) 2026 시설회계, 후원금 회계">'
-   +'<div class="grid g2" style="margin-top:8px"><div><label>회계구분</label><select id="acD">'+['시설회계','법인회계','수익사업회계'].map(x=>'<option>'+x+'</option>').join('')+'</select></div>'
+   +'<div class="grid g2" style="margin-top:8px"><div><label>회계구분</label><select id="acD">'+['시설회계','법인회계','수익사업회계','보조사업'].map(x=>'<option>'+x+'</option>').join('')+'</select></div>'
    +'<div><label>시설종류</label><select id="acK">'+Object.keys(FAC_KIND).map(k=>'<option value="'+k+'"'+(S.facKind===k?' selected':'')+'>'+FAC_KIND[k]+'</option>').join('')+'</select></div></div>'
    +'<label style="display:flex;gap:6px;align-items:center;margin-top:10px"><input type="checkbox" id="acB" checked style="width:auto">만든 뒤 통장 거래내역을 바로 불러와 관·항·목 자동 채우기</label>'
    +'<div class="row" style="margin-top:12px"><button class="pri" id="acOk">만들기</button><button id="acNo">취소</button></div></div>';
@@ -2987,7 +2987,7 @@ function acEditDlg(){
   const m=document.createElement('div');m.className='modal';
   m.innerHTML='<div class="box" style="text-align:left;max-width:420px"><h3>회계목록 수정</h3>'
    +'<label>회계목록 이름</label><input id="aeN" value="'+esc(a.name)+'">'
-   +'<div class="grid g2" style="margin-top:8px"><div><label>회계구분</label><select id="aeD">'+['시설회계','법인회계','수익사업회계'].map(x=>'<option'+(a.acctDiv===x?' selected':'')+'>'+x+'</option>').join('')+'</select></div>'
+   +'<div class="grid g2" style="margin-top:8px"><div><label>회계구분</label><select id="aeD">'+['시설회계','법인회계','수익사업회계','보조사업'].map(x=>'<option'+(a.acctDiv===x?' selected':'')+'>'+x+'</option>').join('')+'</select></div>'
    +'<div><label>시설종류</label><select id="aeK">'+Object.keys(FAC_KIND).map(k=>'<option value="'+k+'"'+(a.facKind===k?' selected':'')+'>'+FAC_KIND[k]+'</option>').join('')+'</select></div></div>'
    +'<div class="muted" style="margin-top:8px">회계구분·시설종류를 바꾸면 이후 새로 만드는 결의서와 통장 거래내역 가져오기부터 해당 별표 과목표가 적용됩니다. 이미 작성한 결의서의 과목은 바뀌지 않습니다.</div>'
    +'<div class="row" style="margin-top:12px"><button class="pri" id="aeOk">저장</button><button id="aeNo">취소</button></div></div>';
@@ -3028,7 +3028,7 @@ function bindAc(){
 }
 loadS();
 const FAC_KIND={facility:'일반 시설(노인·장애인 등)',welfare:'복지관 등',childcare:'어린이집',ltc:'노인장기요양기관'};
-function fTypeOfS(p){return p.acctDiv==='법인회계'?'corp':p.acctDiv==='수익사업회계'?'custom':(p.facKind||'facility')}
+function fTypeOfS(p){return p.acctDiv==='보조사업'?'subsidy':p.acctDiv==='법인회계'?'corp':p.acctDiv==='수익사업회계'?'custom':(p.facKind||'facility')}
 function acctShort(p){return String(p.acctDiv||'').replace(/회계$/,'')}
 function profSummary(p){
   const a=[p.year+'년도',p.acctDiv+(p.acctDiv==='시설회계'?' · '+(FAC_KIND[p.facKind]||''):''),p.facility];
@@ -3200,6 +3200,29 @@ const ACC_TYPES=[
    ['08','예비비 및 기타',[['81','예비비 및 기타',[['811','예비비'],['812','반환금']]]]],
    ['09','적립금 및 준비금',[['91','운영충당 적립금 및 환경개선준비금',[['911','운영충당적립금'],['912','시설환경개선준비금']]]]],
    ['10','적립금 및 준비금 지출(특별회계)',[['101','운영충당 적립금 및 환경개선준비금 지출',[['1011','운영충당적립금 지출'],['1012','시설환경개선준비금 지출']]]]]
+  ]},
+
+ {id:'subsidy',label:'보조사업 (지방보조사업비)',note:'지방보조사업비 보조비목·보조세목 (별표 1의4호) — 관: 보조사업비 · 항: 보조비목(편성목) · 목: 보조세목(통계목) · 세목: 적요 항목에서 직접 입력',
+  rev:{in:'지방보조사업 정산 구성(보조금·지방자치단체부담금·자기부담금)',out:'별표 1의4호 지방보조사업비 보조비목 및 보조세목'},
+  in:[
+   ['01','보조사업수입',[['11','보조사업수입',[['111','보조금'],['112','지방자치단체부담금'],['113','자기부담금']]]]]
+  ],
+  out:[
+   ['01','보조사업비',[
+     ['101','인건비',[['101-01','보수'],['101-02','기타직보수'],['101-03','공무직(무기계약)근로자 보수'],['101-04','기간제근로자등보수'],['101-05','연금부담금 등']]],
+     ['201','일반운영비',[['201-01','사무관리비'],['201-02','공공요금 및 제세 등'],['201-03','행사운영비'],['201-04','복리후생비'],['201-05','위탁교육비'],['201-06','운영수당'],['201-07','임차료'],['201-08','용역비'],['201-09','연료비'],['201-10','시설유지비'],['201-11','차량선박비']]],
+     ['202','여비',[['202-01','국내여비'],['202-03','국외업무여비']]],
+     ['203','업무추진비',[['203-01','기관운영업무추진비'],['203-02','정원가산업무추진비'],['203-03','시책업무추진비'],['203-04','부서운영업무추진비']]],
+     ['204','직무수행경비',[['204-01','직책급업무수행경비'],['204-02','특정업무경비']]],
+     ['206','재료비',[['206-01','재료비']]],
+     ['207','연구개발비',[['207-01','연구용역비'],['207-02','전산개발비'],['207-03','시험연구비']]],
+     ['301','일반보전금',[['301-04','장학금 및 학자금'],['301-09','외빈초청여비'],['301-10','사회복무요원보상금'],['301-11','행사실비지원금'],['301-12','예술단원·운동부 등 보상금'],['301-14','기타보상금']]],
+     ['303','포상금',[['303-01','포상금']]],
+     ['305','배상금 등',[['305-01','배상금']]],
+     ['307','민간이전',[['307-01','의료 및 회복비'],['307-02','민간경상사업보조']]],
+     ['401','시설비 및 부대비',[['401-01','시설비'],['401-02','감리비'],['401-03','시설부대비'],['401-05','시설공사 보상비']]],
+     ['402','민간자본이전',[['402-02','민간자본사업보조']]],
+     ['405','자산취득비',[['405-01','자산 및 물품취득비']]]]]
   ]}
 ];
 
@@ -3260,6 +3283,28 @@ function acctNames(d){
 /* 규칙: [적요 패턴, [목 이름 후보(앞이 우선; 선택한 시설종류 별표에 있는 첫 목)], 설명, (선택)해당 시설종류 id들]. 후보가 null이면 "자동 분류하지 않고 직접 선택"입니다.
    목의 범위는 [별표 2·4·6·8·10]의 '내역(명세)' 란을 기준으로 했습니다. */
 const CLS_OUT=[
+ [/기간제|단시간|일용|일당|아르바이트|알바|대체인력/,[/^기간제근로자등보수$/],'기간제·일용 인건비',['subsidy']],
+ [/급여|월급|봉급|임금|인건비|상여|명절휴가비/,[/^보수$/],'인건비 지급',['subsidy']],
+ [/퇴직|4대보험|사회보험|국민연금|건강보험|고용보험|산재보험/,[/^연금부담금등$/],'퇴직금·사회보험 부담금',['subsidy']],
+ [/강사|참석수당|위원회|심사|자문료|회의수당|수당/,[/^운영수당$/],'강사·참석 수당',['subsidy']],
+ [/출장|여비|숙박|KTX|항공|택시|교통비/i,[/^국내여비$/],'출장 여비',['subsidy']],
+ [/업무추진|접대|간담회|다과|회의비/,[/^시책업무추진비$/],'사업추진 간담회·업무추진비',['subsidy']],
+ [/행사|축제|대회|개회식|시상|공연|체험|캠프|프로그램|체육/,[/^행사운영비$/],'행사 운영',['subsidy']],
+ [/복리후생|맞춤형복지|직원복지|경조/,[/^복리후생비$/],'복리후생비',['subsidy']],
+ [/위탁교육|직무교육|연수|워크숍|세미나/,[/^위탁교육비$/],'위탁교육비',['subsidy']],
+ [/임차|임대|렌탈|렌트|대관|버스대절/,[/^임차료$/],'임차료',['subsidy']],
+ [/용역|위탁|대행|시설관리|청소|경비용역|방역/,[/^용역비$/],'용역비',['subsidy']],
+ [/주유|유류|차량|자동차|세차|선박/,[/^차량선박비$/],'차량 유류·유지비',['subsidy']],
+ [/난방|등유|보일러유|연료|LNG|펠릿/i,[/^연료비$/],'난방 연료',['subsidy']],
+ [/시설(보수|수리|유지)|보수공사|수리|누수|도배|장판|방수|페인트|배관|유지보수/,[/^시설유지비$/],'시설 유지·수리',['subsidy']],
+ [/전기요금|수도요금|가스요금|통신|전화|인터넷|우편|공공요금|한국전력|상하수도|보험료|세금|공과금|제세|회비|협회/,[/^공공요금및제세등$/],'공공요금·제세',['subsidy']],
+ [/감리/,[/^감리비$/],'감리비',['subsidy']],
+ [/공사|시공|리모델링|증축|신축|개축/,[/^시설비$/],'시설 공사',['subsidy']],
+ [/비품|집기|기자재|컴퓨터|노트북|프린터|장비구입|냉장고|에어컨|TV|텔레비전|책상|의자/i,[/^자산및물품취득비$/],'비품·자산 취득',['subsidy']],
+ [/재료비|재료|원자재|자재/,[/^재료비$/],'재료비',['subsidy']],
+ [/포상|상품|상장|표창/,[/^포상금$/],'포상금',['subsidy']],
+ [/사무용품|문구|복사|인쇄|토너|용지|제본|현수막|소모품|수수료|도서|홍보물|명패|상패/,[/^사무관리비$/],'사무관리비',['subsidy']],
+ [/구입|구매|물품|용품/,[/^사무관리비$/],'물품 구입',['subsidy']],
  [/원장.*(급여|월급)/,[/^원장급여$/],'원장 급여'],
  [/퇴직/,[/^퇴직금/],'퇴직금 지급'],
  [/4대보험|사회보험|국민연금|건강보험|고용보험|산재보험|법정부담/,[/^사회보험부담금$/,/^법정부담금$/],'사회보험 기관부담금'],
@@ -3305,6 +3350,9 @@ const CLS_OUT=[
  [/구입|구매|물품|용품/,[/^수용비및수수료$/,/^수용비/,/^기타운영비$/],'물품 구입']
 ];
 const CLS_IN=[
+ [/자기부담|자부담/,[/^자기부담금$/],'자기부담금 입금',['subsidy']],
+ [/지방자치단체부담|지자체부담|군비|시비|도비/,[/^지방자치단체부담금$/],'지방자치단체부담금 입금',['subsidy']],
+ [/보조금|교부|지원금|국비|부여군|군청/,[/^보조금$/],'보조금 입금',['subsidy']],
  [/국고|국비/,[/^국고보조금$/],'국고보조금 입금'],
  [/도비|시·도|시도보조|광역/,[/^시·도보조금$/],'시·도 보조금 입금'],
  [/시·군·구|시군구|군비|시비|구비|시보조|군보조|구보조|지자체|부여군/,[/^시·군·구보조금$/,/^그밖의지원금$/],'시·군·구 보조금 입금'],
@@ -3727,10 +3775,10 @@ function profHTML(){
   const yr=new Date().getFullYear(),ys=[];for(let y=yr-3;y<=yr+1;y++)ys.push(y);if(S.year&&ys.indexOf(+S.year)<0)ys.push(+S.year);
   if(S.saved&&!profOpen)return '<div class="card prof"><h2>① 시설 정보 <button class="sm" id="pfEdit">수정</button></h2><div class="muted">'+esc(profSummary(S))+'</div></div>';
   const inp=(id,lb,v,ph)=>'<div><label>'+lb+'</label><input id="'+id+'" value="'+esc(v||'')+'" placeholder="'+(ph||'')+'"></div>';
-  const corp=S.acctDiv==='법인회계'||S.acctDiv==='수익사업회계';
+  const corp=S.acctDiv==='법인회계'||S.acctDiv==='수익사업회계'||S.acctDiv==='보조사업';
   return '<div class="card prof edit"><h2>① 시설 정보 <small>'+(S.saved?'수정 후 저장을 누르세요':'처음 한 번만 입력하면 새 결의서마다 자동으로 들어갑니다')+'</small></h2>'
    +'<div class="grid g3"><div><label>회계연도</label><select id="pfYear">'+ys.map(y=>'<option'+(String(y)===String(S.year)?' selected':'')+'>'+y+'</option>').join('')+'</select></div>'
-   +'<div><label>회계구분</label><select id="pfDiv">'+['시설회계','법인회계','수익사업회계'].map(x=>'<option'+(S.acctDiv===x?' selected':'')+'>'+x+'</option>').join('')+'</select></div>'
+   +'<div><label>회계구분</label><select id="pfDiv">'+['시설회계','법인회계','수익사업회계','보조사업'].map(x=>'<option'+(S.acctDiv===x?' selected':'')+'>'+x+'</option>').join('')+'</select></div>'
    +'<div><label>시설종류</label><select id="pfKind"'+(corp?' disabled':'')+'>'+Object.keys(FAC_KIND).map(k=>'<option value="'+k+'"'+(S.facKind===k?' selected':'')+'>'+FAC_KIND[k]+'</option>').join('')+'</select></div></div>'
    +'<div class="grid g2" style="margin-top:10px"><div style="grid-column:1/-1">'+inp('pfFac','시설명',S.facility,'예) ○○실버홈')+'</div>'
    +inp('pfHead','시설장',S.head)+inp('pfMgr','담당자',S.manager)+inp('pfSp','지출원',S.spender)+inp('pfWr','작성(작성자)',S.writer)+'</div>'
@@ -3738,7 +3786,7 @@ function profHTML(){
    +'<label class="rbo" style="margin-top:6px;display:flex;gap:6px;align-items:center"><input type="checkbox" id="pfExpOnly" style="width:auto"'+(S.expOnly?' checked':'')+'> <b>지출결의서만 사용</b> <span class="muted">(총계정원장·현금출납부 등 장부와 수입·여입결의서, 통장 거래내역 가져오기를 숨기고 지출결의서만 씁니다)</span></label>'
    +'<div class="grid g2" style="margin-top:10px">'+stampBox('Head','시설장 결재인(도장·서명)',S.stampHead)+stampBox('Mgr','담당자 결재인(도장·서명)',S.stampMgr)+'</div>'
    +'<div class="muted">결재인 이미지는 결의서 결재란의 해당 칸(시설장·원장 / 담당·작성)에 자동으로 들어가 인쇄됩니다. 배경이 흰색인 사진도 괜찮습니다.</div>'
-   +'<div class="muted" style="margin-top:8px">'+(S.acctDiv==='수익사업회계'?'수익사업회계는 별표 과목표가 없어 관·항·목을 직접 입력합니다.':'회계구분·시설종류에 맞는 별표 예산과목으로 적요가 자동 분류됩니다.')+'</div>'
+   +'<div class="muted" style="margin-top:8px">'+(S.acctDiv==='수익사업회계'?'수익사업회계는 별표 과목표가 없어 관·항·목을 직접 입력합니다.':S.acctDiv==='보조사업'?'보조사업은 지방보조사업비 보조비목(항)·보조세목(목) 과목표(별표 1의4호)로 적요가 자동 분류됩니다. 세목은 적요 항목에서 직접 입력합니다.':'회계구분·시설종류에 맞는 별표 예산과목으로 적요가 자동 분류됩니다.')+'</div>'
    +'<div class="row" style="margin-top:10px"><button class="pri" id="pfSave">저장</button>'+(S.saved?'<button id="pfCancel">취소</button>':'')+'</div></div>';
 }
 function bindProf(){
